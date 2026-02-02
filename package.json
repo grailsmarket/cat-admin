@@ -12,6 +12,7 @@
     "checks": "npm run format && npm run lint && npm run typecheck"
   },
   "dependencies": {
+    "@adraffy/ens-normalize": "^1.11.1",
     "@rainbow-me/rainbowkit": "^2.2.8",
     "@tanstack/react-query": "^5.90.2",
     "clsx": "^2.1.1",
@@ -39,4 +40,3 @@
     "typescript": "^5"
   }
 }
-

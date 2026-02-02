@@ -42,7 +42,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const offset = (page - 1) * limit
 
     const members = await query<CategoryMember>(`
-      SELECT ens_name, created_at as added_at
+      SELECT ens_name, added_at
       FROM club_memberships
       WHERE club_name = $1
       ORDER BY ens_name

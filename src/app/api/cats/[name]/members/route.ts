@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { query, withTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
+import { normalizeEnsName } from '@/lib/normalize'
 
 type RouteParams = {
   params: Promise<{ name: string }>
@@ -30,13 +31,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Names array is required' }, { status: 400 })
     }
 
-    // Normalize ENS names (lowercase, trim)
-    const normalizedNames = names
-      .map((n: string) => n.trim().toLowerCase())
-      .filter((n: string) => n.length > 0)
+    // Normalize ENS names per ENSIP-15
+    const normalizationResults = names.map((n: string) => ({
+      original: n,
+      normalized: normalizeEnsName(n),
+    }))
+
+    const invalidEnsNames = normalizationResults
+      .filter((r) => r.normalized === null)
+      .map((r) => r.original)
+
+    const normalizedNames = normalizationResults
+      .map((r) => r.normalized)
+      .filter((n): n is string => n !== null)
 
     if (normalizedNames.length === 0) {
-      return NextResponse.json({ error: 'No valid names provided' }, { status: 400 })
+      return NextResponse.json({ 
+        error: 'No valid ENS names provided',
+        invalidNames: invalidEnsNames,
+      }, { status: 400 })
     }
 
     // Check if category exists
@@ -48,69 +61,66 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    // Validate ENS names exist in ens_names table
+    // Validate ENS names exist in ens_names table (case-insensitive)
     const placeholders = normalizedNames.map((_, i) => `$${i + 1}`).join(', ')
     const validNames = await query<{ name: string }>(`
-      SELECT name FROM ens_names WHERE name IN (${placeholders})
-    `, normalizedNames)
+      SELECT name FROM ens_names WHERE LOWER(name) IN (${placeholders})
+    `, normalizedNames.map(n => n.toLowerCase()))
 
-    const validNameSet = new Set(validNames.map((v) => v.name))
-    const invalidNames = normalizedNames.filter((n) => !validNameSet.has(n))
+    const validNameSet = new Set(validNames.map((v) => v.name.toLowerCase()))
+    const notFoundNames = normalizedNames.filter((n) => !validNameSet.has(n.toLowerCase()))
 
-    if (invalidNames.length > 0) {
+    // Combine invalid names from normalization + not found in DB
+    const allInvalidNames = [...invalidEnsNames, ...notFoundNames]
+
+    if (allInvalidNames.length > 0) {
       return NextResponse.json({
-        error: 'Some ENS names are not valid or not found',
-        invalidNames,
+        success: false,
+        error: 'Some ENS names are invalid or not found in database',
+        invalidNames: allInvalidNames,
+        details: {
+          invalidFormat: invalidEnsNames,
+          notInDatabase: notFoundNames,
+        }
       }, { status: 400 })
     }
 
-    // Check for existing memberships
-    const existingMemberships = await query<{ ens_name: string }>(`
-      SELECT ens_name FROM club_memberships 
-      WHERE club_name = $1 AND ens_name IN (${placeholders})
-    `, [name, ...normalizedNames])
+    // Use the actual names from DB (correct casing)
+    const dbNames = validNames.map(v => v.name)
 
-    const existingSet = new Set(existingMemberships.map((e) => e.ens_name))
-    const newNames = normalizedNames.filter((n) => !existingSet.has(n))
-
-    if (newNames.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'All names already exist in this category',
-        added: 0,
-        skipped: normalizedNames.length,
-      })
-    }
-
-    // Add members in a transaction
+    // Add members in a transaction using idempotent pattern
     const result = await withTransaction(async (client) => {
-      // Insert new memberships
-      for (const ensName of newNames) {
-        await client.query(`
-          INSERT INTO club_memberships (club_name, ens_name, created_at)
+      let added = 0
+      let skipped = 0
+
+      for (const ensName of dbNames) {
+        // Use ON CONFLICT DO NOTHING with RETURNING to know if insert happened
+        const insertResult = await client.query(`
+          INSERT INTO club_memberships (club_name, ens_name, added_at)
           VALUES ($1, $2, NOW())
+          ON CONFLICT (club_name, ens_name) DO NOTHING
+          RETURNING club_name
         `, [name, ensName])
+
+        if (insertResult.rowCount && insertResult.rowCount > 0) {
+          added++
+        } else {
+          skipped++
+        }
       }
 
-      // Update member count
-      await client.query(`
-        UPDATE clubs 
-        SET member_count = (
-          SELECT COUNT(*) FROM club_memberships WHERE club_name = $1
-        ), updated_at = NOW()
-        WHERE name = $1
-      `, [name])
+      // Note: member_count is updated automatically by trigger (update_club_member_count)
 
-      return { added: newNames.length }
+      return { added, skipped }
     })
 
-    console.log(`[cats] Added ${result.added} members to category: ${name}`)
+    console.log(`[cats] Added ${result.added} members to category: ${name} (skipped ${result.skipped} existing)`)
 
     return NextResponse.json({
       success: true,
-      message: `Added ${result.added} members`,
+      message: `Added ${result.added} member(s)`,
       added: result.added,
-      skipped: existingSet.size,
+      skipped: result.skipped,
     })
   } catch (error) {
     console.error('Add members error:', error)
@@ -148,13 +158,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Names array is required' }, { status: 400 })
     }
 
-    // Normalize ENS names
+    // Normalize ENS names per ENSIP-15
     const normalizedNames = names
-      .map((n: string) => n.trim().toLowerCase())
-      .filter((n: string) => n.length > 0)
+      .map((n: string) => normalizeEnsName(n))
+      .filter((n): n is string => n !== null)
 
     if (normalizedNames.length === 0) {
-      return NextResponse.json({ error: 'No valid names provided' }, { status: 400 })
+      return NextResponse.json({ error: 'No valid ENS names provided' }, { status: 400 })
     }
 
     // Check if category exists
@@ -166,32 +176,33 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    // Remove members in a transaction
+    // Remove members in a transaction (case-insensitive matching)
     const result = await withTransaction(async (client) => {
-      // Delete memberships
-      const placeholders = normalizedNames.map((_, i) => `$${i + 2}`).join(', ')
-      const deleteResult = await client.query(`
-        DELETE FROM club_memberships 
-        WHERE club_name = $1 AND ens_name IN (${placeholders})
-      `, [name, ...normalizedNames])
+      let removed = 0
 
-      // Update member count
-      await client.query(`
-        UPDATE clubs 
-        SET member_count = (
-          SELECT COUNT(*) FROM club_memberships WHERE club_name = $1
-        ), updated_at = NOW()
-        WHERE name = $1
-      `, [name])
+      for (const ensName of normalizedNames) {
+        // Case-insensitive delete with RETURNING to count actual deletions
+        const deleteResult = await client.query(`
+          DELETE FROM club_memberships 
+          WHERE club_name = $1 AND LOWER(ens_name) = LOWER($2)
+          RETURNING club_name
+        `, [name, ensName])
 
-      return { removed: deleteResult.rowCount || 0 }
+        if (deleteResult.rowCount && deleteResult.rowCount > 0) {
+          removed++
+        }
+      }
+
+      // Note: member_count is updated automatically by trigger (update_club_member_count)
+
+      return { removed }
     })
 
     console.log(`[cats] Removed ${result.removed} members from category: ${name}`)
 
     return NextResponse.json({
       success: true,
-      message: `Removed ${result.removed} members`,
+      message: `Removed ${result.removed} member(s)`,
       removed: result.removed,
     })
   } catch (error) {
@@ -206,4 +217,3 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Failed to remove members' }, { status: 500 })
   }
 }
-
