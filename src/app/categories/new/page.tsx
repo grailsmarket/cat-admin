@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createCategory, addMembers } from '@/api/categories'
+import { createCategory, addNames } from '@/api/categories'
 
 export default function NewCategoryPage() {
   const router = useRouter()
@@ -30,7 +30,7 @@ export default function NewCategoryPage() {
         .filter((n) => n.length > 0)
 
       if (names.length > 0) {
-        const addResult = await addMembers(name, names)
+        const addResult = await addNames(name, names)
         if (!addResult.success) {
           // Category was created but members failed
           return {
@@ -84,7 +84,7 @@ export default function NewCategoryPage() {
   return (
     <div className='p-8'>
       {/* Header */}
-      <div className='mb-8'>
+      <div className='mx-auto mb-8 max-w-2xl'>
         <Link href='/categories' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>
           <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
             <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
@@ -96,7 +96,7 @@ export default function NewCategoryPage() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className='max-w-2xl'>
+      <form onSubmit={handleSubmit} className='mx-auto max-w-2xl'>
         <div className='card mb-6'>
           <h2 className='mb-6 text-lg font-semibold'>Category Details</h2>
 
@@ -136,9 +136,9 @@ export default function NewCategoryPage() {
           </div>
         </div>
 
-        {/* Initial Members */}
+        {/* Initial Names */}
         <div className='card mb-6'>
-          <h2 className='mb-2 text-lg font-semibold'>Initial Members</h2>
+          <h2 className='mb-2 text-lg font-semibold'>Initial Names</h2>
           <p className='text-neutral mb-6 text-sm'>
             Optionally add ENS names to this category. You can also add them later.
           </p>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCategories } from '@/api/categories'
 
-type SortField = 'name' | 'member_count' | 'created_at' | 'updated_at'
+type SortField = 'name' | 'name_count' | 'created_at' | 'updated_at'
 type SortDirection = 'asc' | 'desc'
 
 export default function CategoriesPage() {
@@ -39,8 +39,8 @@ export default function CategoriesPage() {
         case 'name':
           comparison = a.name.localeCompare(b.name)
           break
-        case 'member_count':
-          comparison = a.member_count - b.member_count
+        case 'name_count':
+          comparison = (a.name_count ?? 0) - (b.name_count ?? 0)
           break
         case 'created_at':
           comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -187,9 +187,9 @@ export default function CategoriesPage() {
                 <th>Description</th>
                 <th
                   className='cursor-pointer hover:text-foreground'
-                  onClick={() => handleSort('member_count')}
+                  onClick={() => handleSort('name_count')}
                 >
-                  Members <SortIcon field='member_count' />
+                  Names <SortIcon field='name_count' />
                 </th>
                 <th
                   className='cursor-pointer hover:text-foreground'
@@ -222,7 +222,7 @@ export default function CategoriesPage() {
                   </td>
                   <td>
                     <span className='bg-tertiary rounded-full px-3 py-1 text-sm'>
-                      {category.member_count.toLocaleString()}
+                      {(category.name_count ?? 0).toLocaleString()}
                     </span>
                   </td>
                   <td className='text-neutral text-sm'>{formatDate(category.created_at)}</td>

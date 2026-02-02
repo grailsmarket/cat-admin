@@ -3,7 +3,7 @@
 import { useState, use } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchCategory, updateCategory, addMembers, removeMembers } from '@/api/categories'
+import { fetchCategory, updateCategory, addNames, removeNames } from '@/api/categories'
 
 type PageProps = {
   params: Promise<{ name: string }>
@@ -18,8 +18,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [description, setDescription] = useState('')
   const [newNames, setNewNames] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
-  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
-  const [memberSearch, setMemberSearch] = useState('')
+  const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set())
+  const [nameSearch, setNameSearch] = useState('')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
@@ -42,38 +42,38 @@ export default function CategoryDetailPage({ params }: PageProps) {
     onError: (err: Error) => setError(err.message),
   })
 
-  // Add members mutation
-  const addMembersMutation = useMutation({
-    mutationFn: (names: string[]) => addMembers(name, names),
+  // Add names mutation
+  const addNamesMutation = useMutation({
+    mutationFn: (names: string[]) => addNames(name, names),
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ['category', name] })
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setNewNames('')
         setShowAddForm(false)
-        showSuccess(`Added ${result.added} member(s)${result.skipped ? `, skipped ${result.skipped} existing` : ''}`)
+        showSuccess(`Added ${result.added} name(s)${result.skipped ? `, skipped ${result.skipped} existing` : ''}`)
       } else {
         if (result.invalidNames && result.invalidNames.length > 0) {
           setError(`Invalid ENS names: ${result.invalidNames.slice(0, 5).join(', ')}${result.invalidNames.length > 5 ? ` and ${result.invalidNames.length - 5} more` : ''}`)
         } else {
-          setError(result.error || 'Failed to add members')
+          setError(result.error || 'Failed to add names')
         }
       }
     },
     onError: (err: Error) => setError(err.message),
   })
 
-  // Remove members mutation
-  const removeMembersMutation = useMutation({
-    mutationFn: (names: string[]) => removeMembers(name, names),
+  // Remove names mutation
+  const removeNamesMutation = useMutation({
+    mutationFn: (names: string[]) => removeNames(name, names),
     onSuccess: (result) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ['category', name] })
         queryClient.invalidateQueries({ queryKey: ['categories'] })
-        setSelectedMembers(new Set())
-        showSuccess(`Removed ${result.removed} member(s)`)
+        setSelectedNames(new Set())
+        showSuccess(`Removed ${result.removed} name(s)`)
       } else {
-        setError(result.error || 'Failed to remove members')
+        setError(result.error || 'Failed to remove names')
       }
     },
     onError: (err: Error) => setError(err.message),
@@ -99,7 +99,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
     updateMutation.mutate()
   }
 
-  const handleAddMembers = () => {
+  const handleAddNames = () => {
     setError('')
     const names = newNames
       .split('\n')
@@ -111,36 +111,36 @@ export default function CategoryDetailPage({ params }: PageProps) {
       return
     }
 
-    addMembersMutation.mutate(names)
+    addNamesMutation.mutate(names)
   }
 
   const handleRemoveSelected = () => {
-    if (selectedMembers.size === 0) return
+    if (selectedNames.size === 0) return
     setError('')
-    removeMembersMutation.mutate(Array.from(selectedMembers))
+    removeNamesMutation.mutate(Array.from(selectedNames))
   }
 
-  const toggleMember = (ensName: string) => {
-    const newSelected = new Set(selectedMembers)
+  const toggleName = (ensName: string) => {
+    const newSelected = new Set(selectedNames)
     if (newSelected.has(ensName)) {
       newSelected.delete(ensName)
     } else {
       newSelected.add(ensName)
     }
-    setSelectedMembers(newSelected)
+    setSelectedNames(newSelected)
   }
 
-  const toggleAllMembers = () => {
-    if (!category?.members) return
-    if (selectedMembers.size === category.members.length) {
-      setSelectedMembers(new Set())
+  const toggleAllNames = () => {
+    if (!category?.names) return
+    if (selectedNames.size === category.names.length) {
+      setSelectedNames(new Set())
     } else {
-      setSelectedMembers(new Set(category.members.map((m) => m.ens_name)))
+      setSelectedNames(new Set(category.names.map((m) => m.ens_name)))
     }
   }
 
-  const filteredMembers = category?.members?.filter((m) =>
-    m.ens_name.toLowerCase().includes(memberSearch.toLowerCase())
+  const filteredNames = category?.names?.filter((m) =>
+    m.ens_name.toLowerCase().includes(nameSearch.toLowerCase())
   )
 
   const formatDate = (dateString: string) => {
@@ -153,7 +153,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
     })
   }
 
-  const nameCount = newNames
+  const inputNameCount = newNames
     .split('\n')
     .map((n) => n.trim())
     .filter((n) => n.length > 0).length
@@ -195,7 +195,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
         </Link>
         <h1 className='text-3xl font-bold'>{category.name}</h1>
         <p className='text-neutral mt-1'>
-          {category.member_count.toLocaleString()} member{category.member_count !== 1 ? 's' : ''} • 
+          {(category.name_count ?? 0).toLocaleString()} name{category.name_count !== 1 ? 's' : ''} • 
           Created {formatDate(category.created_at)}
         </p>
       </div>
@@ -267,8 +267,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
             <div className='border-border mt-6 border-t pt-6'>
               <div className='grid grid-cols-2 gap-4 text-sm'>
                 <div>
-                  <p className='text-neutral'>Members</p>
-                  <p className='text-xl font-bold'>{category.member_count.toLocaleString()}</p>
+                  <p className='text-neutral'>Names</p>
+                  <p className='text-xl font-bold'>{(category.name_count ?? 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className='text-neutral'>Last Updated</p>
@@ -279,33 +279,33 @@ export default function CategoryDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Right column - Members */}
+        {/* Right column - Names */}
         <div className='lg:col-span-2'>
           <div className='card'>
-            {/* Members header */}
+            {/* Names header */}
             <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
-              <h2 className='text-lg font-semibold'>Members</h2>
+              <h2 className='text-lg font-semibold'>Names</h2>
               <div className='flex items-center gap-2'>
-                {selectedMembers.size > 0 && (
+                {selectedNames.size > 0 && (
                   <button
                     onClick={handleRemoveSelected}
                     className='btn btn-danger text-sm'
-                    disabled={removeMembersMutation.isPending}
+                    disabled={removeNamesMutation.isPending}
                   >
-                    {removeMembersMutation.isPending ? 'Removing...' : `Remove ${selectedMembers.size} Selected`}
+                    {removeNamesMutation.isPending ? 'Removing...' : `Remove ${selectedNames.size} Selected`}
                   </button>
                 )}
                 <button onClick={() => setShowAddForm(!showAddForm)} className='btn btn-primary text-sm'>
-                  {showAddForm ? 'Cancel' : 'Add Members'}
+                  {showAddForm ? 'Cancel' : 'Add Names'}
                 </button>
               </div>
             </div>
 
-            {/* Add members form */}
+            {/* Add names form */}
             {showAddForm && (
               <div className='bg-secondary mb-6 rounded-lg p-4'>
                 <label className='mb-2 block text-sm font-medium'>
-                  Add ENS Names {nameCount > 0 && <span className='text-neutral'>({nameCount} names)</span>}
+                  Add ENS Names {inputNameCount > 0 && <span className='text-neutral'>({inputNameCount} names)</span>}
                 </label>
                 <textarea
                   value={newNames}
@@ -317,18 +317,18 @@ export default function CategoryDetailPage({ params }: PageProps) {
                 <div className='flex items-center justify-between'>
                   <p className='text-neutral text-sm'>Enter one ENS name per line</p>
                   <button
-                    onClick={handleAddMembers}
+                    onClick={handleAddNames}
                     className='btn btn-primary text-sm'
-                    disabled={addMembersMutation.isPending || nameCount === 0}
+                    disabled={addNamesMutation.isPending || inputNameCount === 0}
                   >
-                    {addMembersMutation.isPending ? 'Adding...' : 'Add Names'}
+                    {addNamesMutation.isPending ? 'Adding...' : 'Add Names'}
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Members search */}
-            {category.members && category.members.length > 0 && (
+            {/* Names search */}
+            {category.names && category.names.length > 0 && (
               <div className='relative mb-4'>
                 <svg
                   className='text-neutral absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2'
@@ -345,27 +345,27 @@ export default function CategoryDetailPage({ params }: PageProps) {
                 </svg>
                 <input
                   type='text'
-                  placeholder='Search members...'
-                  value={memberSearch}
-                  onChange={(e) => setMemberSearch(e.target.value)}
+                  placeholder='Search names...'
+                  value={nameSearch}
+                  onChange={(e) => setNameSearch(e.target.value)}
                   className='w-full pl-10 text-sm'
                 />
               </div>
             )}
 
-            {/* Members list */}
-            {(!category.members || category.members.length === 0) && (
+            {/* Names list */}
+            {(!category.names || category.names.length === 0) && (
               <div className='py-8 text-center'>
-                <p className='text-neutral'>No members in this category yet.</p>
+                <p className='text-neutral'>No names in this category yet.</p>
                 {!showAddForm && (
                   <button onClick={() => setShowAddForm(true)} className='text-primary hover:underline mt-2 text-sm'>
-                    Add your first members
+                    Add your first names
                   </button>
                 )}
               </div>
             )}
 
-            {filteredMembers && filteredMembers.length > 0 && (
+            {filteredNames && filteredNames.length > 0 && (
               <>
                 <div className='border-border max-h-96 overflow-y-auto rounded-lg border'>
                   <table className='min-w-full'>
@@ -374,8 +374,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
                         <th className='w-10'>
                           <input
                             type='checkbox'
-                            checked={selectedMembers.size === category.members?.length && category.members.length > 0}
-                            onChange={toggleAllMembers}
+                            checked={selectedNames.size === category.names?.length && category.names.length > 0}
+                            onChange={toggleAllNames}
                             className='rounded'
                           />
                         </th>
@@ -384,18 +384,18 @@ export default function CategoryDetailPage({ params }: PageProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredMembers.map((member) => (
-                        <tr key={member.ens_name} className={selectedMembers.has(member.ens_name) ? 'bg-primary/5' : ''}>
+                      {filteredNames.map((entry) => (
+                        <tr key={entry.ens_name} className={selectedNames.has(entry.ens_name) ? 'bg-primary/5' : ''}>
                           <td>
                             <input
                               type='checkbox'
-                              checked={selectedMembers.has(member.ens_name)}
-                              onChange={() => toggleMember(member.ens_name)}
+                              checked={selectedNames.has(entry.ens_name)}
+                              onChange={() => toggleName(entry.ens_name)}
                               className='rounded'
                             />
                           </td>
-                          <td className='font-mono'>{member.ens_name}</td>
-                          <td className='text-neutral text-sm'>{formatDate(member.added_at)}</td>
+                          <td className='font-mono'>{entry.ens_name}</td>
+                          <td className='text-neutral text-sm'>{formatDate(entry.added_at)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -406,8 +406,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
                 {category.pagination && category.pagination.totalPages > 1 && (
                   <div className='mt-4 flex items-center justify-between'>
                     <p className='text-neutral text-sm'>
-                      Showing {(page - 1) * 50 + 1}-{Math.min(page * 50, category.pagination.totalMembers)} of{' '}
-                      {category.pagination.totalMembers.toLocaleString()}
+                      Showing {(page - 1) * 50 + 1}-{Math.min(page * 50, category.pagination.totalNames)} of{' '}
+                      {category.pagination.totalNames.toLocaleString()}
                     </p>
                     <div className='flex gap-2'>
                       <button
@@ -431,9 +431,9 @@ export default function CategoryDetailPage({ params }: PageProps) {
             )}
 
             {/* No search results */}
-            {category.members && category.members.length > 0 && filteredMembers?.length === 0 && (
+            {category.names && category.names.length > 0 && filteredNames?.length === 0 && (
               <div className='py-8 text-center'>
-                <p className='text-neutral'>No members match your search.</p>
+                <p className='text-neutral'>No names match your search.</p>
               </div>
             )}
           </div>

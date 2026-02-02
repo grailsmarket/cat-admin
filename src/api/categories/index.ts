@@ -1,11 +1,11 @@
 import type { Category, CategoryMember, ApiResponse } from '@/types'
 
-export type CategoryWithMembers = Category & {
-  members: CategoryMember[]
+export type CategoryWithNames = Category & {
+  names: CategoryMember[]
   pagination: {
     page: number
     limit: number
-    totalMembers: number
+    totalNames: number
     totalPages: number
   }
 }
@@ -18,12 +18,12 @@ export async function fetchCategories(): Promise<ApiResponse<Category[]>> {
   return response.json()
 }
 
-// Get single category with members
+// Get single category with names
 export async function fetchCategory(
   name: string,
   page = 1,
   limit = 50
-): Promise<ApiResponse<CategoryWithMembers>> {
+): Promise<ApiResponse<CategoryWithNames>> {
   const response = await fetch(`/api/cats/${name}?page=${page}&limit=${limit}`, {
     credentials: 'include',
   })
@@ -58,8 +58,8 @@ export async function updateCategory(
   return response.json()
 }
 
-// Add members to category
-export type AddMembersResponse = {
+// Add names to category
+export type AddNamesResponse = {
   success: boolean
   message?: string
   added?: number
@@ -68,10 +68,10 @@ export type AddMembersResponse = {
   invalidNames?: string[]
 }
 
-export async function addMembers(
+export async function addNames(
   categoryName: string,
   names: string[]
-): Promise<AddMembersResponse> {
+): Promise<AddNamesResponse> {
   const response = await fetch(`/api/cats/${categoryName}/members`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -81,18 +81,18 @@ export async function addMembers(
   return response.json()
 }
 
-// Remove members from category
-export type RemoveMembersResponse = {
+// Remove names from category
+export type RemoveNamesResponse = {
   success: boolean
   message?: string
   removed?: number
   error?: string
 }
 
-export async function removeMembers(
+export async function removeNames(
   categoryName: string,
   names: string[]
-): Promise<RemoveMembersResponse> {
+): Promise<RemoveNamesResponse> {
   const response = await fetch(`/api/cats/${categoryName}/members`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },

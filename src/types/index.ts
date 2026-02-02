@@ -3,7 +3,7 @@ import type { Address } from 'viem'
 export type Category = {
   name: string
   description: string | null
-  member_count: number
+  name_count: number
   created_at: string
   updated_at: string
 }

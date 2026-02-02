@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { query } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
-import type { Category, CategoryMember } from '@/types'
+import type { Category } from '@/types'
 
 type RouteParams = {
   params: Promise<{ name: string }>
 }
 
-// GET /api/cats/[name] - Get category details with members
+const GRAILS_API_URL = process.env.GRAILS_API_URL
+
+// GET /api/cats/[name] - Get category details with members (via grails-backend)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { name } = await params
@@ -24,68 +26,71 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Get category
-    const [category] = await query<Category>(`
-      SELECT name, description, member_count, created_at, updated_at
-      FROM clubs
-      WHERE name = $1
-    `, [name])
-
-    if (!category) {
-      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+    if (!GRAILS_API_URL) {
+      return NextResponse.json({ error: 'GRAILS_API_URL not configured' }, { status: 503 })
     }
 
-    // Get members with pagination
+    // Get pagination params
     const url = new URL(request.url)
     const page = parseInt(url.searchParams.get('page') || '1')
     const limit = parseInt(url.searchParams.get('limit') || '50')
-    const offset = (page - 1) * limit
 
-    const members = await query<CategoryMember>(`
-      SELECT ens_name, added_at
-      FROM club_memberships
-      WHERE club_name = $1
-      ORDER BY ens_name
-      LIMIT $2 OFFSET $3
-    `, [name, limit, offset])
+    // Fetch from grails-backend /clubs/:name endpoint
+    const apiUrl = `${GRAILS_API_URL}/clubs/${encodeURIComponent(name)}?page=${page}&limit=${limit}`
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    })
 
-    // Get total count for pagination
-    const [countResult] = await query<{ count: string }>(`
-      SELECT COUNT(*) as count
-      FROM club_memberships
-      WHERE club_name = $1
-    `, [name])
+    if (!response.ok) {
+      if (response.status === 404) {
+        return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+      }
+      return NextResponse.json({ error: 'Failed to fetch category' }, { status: response.status })
+    }
 
-    const totalMembers = parseInt(countResult?.count || '0')
-    const totalPages = Math.ceil(totalMembers / limit)
+    const data = await response.json()
 
+    if (!data.success) {
+      return NextResponse.json({ error: data.error || 'Category not found' }, { status: 404 })
+    }
+
+    const club = data.data
+
+    // Calculate name count from the names array or fall back to member_count
+    const names = club.names || []
+    const nameCount = club.member_count ?? names.length
+
+    // Map to our response format
     return NextResponse.json({
       success: true,
       data: {
-        ...category,
-        members,
+        name: club.name,
+        description: club.description,
+        name_count: nameCount,
+        created_at: club.created_at,
+        updated_at: club.updated_at,
+        names: names.map((n: { name: string; added_at?: string }) => ({
+          ens_name: n.name,
+          added_at: n.added_at || null,
+        })),
         pagination: {
           page,
           limit,
-          totalMembers,
-          totalPages,
+          totalNames: nameCount,
+          totalPages: Math.ceil(nameCount / limit) || 1,
         },
       },
     })
   } catch (error) {
     console.error('Get category error:', error)
-    
-    if (error instanceof Error && error.message.includes('DATABASE_URL')) {
-      return NextResponse.json({ 
-        error: 'Database not configured. Set DATABASE_URL environment variable.' 
-      }, { status: 503 })
-    }
-    
     return NextResponse.json({ error: 'Failed to get category' }, { status: 500 })
   }
 }
 
-// PUT /api/cats/[name] - Update category
+// PUT /api/cats/[name] - Update category (direct DB - no backend endpoint)
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { name } = await params
@@ -136,4 +141,3 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Failed to update category' }, { status: 500 })
   }
 }
-

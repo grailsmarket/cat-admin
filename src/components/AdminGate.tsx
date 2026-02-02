@@ -26,7 +26,7 @@ export default function AdminGate({ children }: Props) {
   if (!userAddress) {
     return (
       <div className='flex min-h-screen items-center justify-center'>
-        <div className='card max-w-md text-center'>
+        <div className='card flex max-w-md flex-col items-center text-center'>
           <h1 className='mb-4 text-2xl font-bold'>Cat Admin</h1>
           <p className='text-neutral mb-6'>Connect your wallet to access the admin panel.</p>
           <ConnectButton />
@@ -39,10 +39,10 @@ export default function AdminGate({ children }: Props) {
   if (authStatus === 'unauthenticated') {
     return (
       <div className='flex min-h-screen items-center justify-center'>
-        <div className='card max-w-md text-center'>
+        <div className='card flex max-w-md flex-col items-center text-center'>
           <h1 className='mb-4 text-2xl font-bold'>Sign In Required</h1>
           <p className='text-neutral mb-6'>Please sign the message with your wallet to continue.</p>
-          <button onClick={handleSignIn} disabled={isSigningIn} className='btn btn-primary w-full'>
+          <button onClick={handleSignIn} disabled={isSigningIn} className='btn btn-primary'>
             {isSigningIn ? 'Signing...' : 'Sign In'}
           </button>
         </div>
@@ -54,7 +54,7 @@ export default function AdminGate({ children }: Props) {
   if (!isAdmin) {
     return (
       <div className='flex min-h-screen items-center justify-center'>
-        <div className='card max-w-md text-center'>
+        <div className='card flex max-w-md flex-col items-center text-center'>
           <h1 className='text-error mb-4 text-2xl font-bold'>Access Denied</h1>
           <p className='text-neutral mb-4'>
             Your wallet address is not authorized to access the admin panel.

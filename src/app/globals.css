@@ -89,10 +89,16 @@ select {
   background: var(--secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px 14px;
+  padding-block: 10px;
+  padding-inline: 14px;
   color: var(--foreground);
   font-size: 14px;
   transition: border-color 0.2s ease;
+}
+
+/* Input with icon - use pl-10 class to add left padding for icon */
+input.pl-10 {
+  padding-left: 2.5rem;
 }
 
 input:focus,
