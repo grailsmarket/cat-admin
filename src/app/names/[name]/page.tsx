@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { fetchEnsName, removeCategoriesFromName } from '@/api/names'
 import { fetchCategories, addNames, type AddNamesResponse } from '@/api/categories'
+import ConfirmModal from '@/components/ConfirmModal'
 
 interface PageProps {
   params: Promise<{ name: string }>
@@ -19,6 +20,14 @@ export default function NameDetailPage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState('')
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean
+    type: 'add' | 'remove'
+    categoryName?: string
+    categories?: string[]
+  }>({ isOpen: false, type: 'add' })
 
   const { data: ensName, isLoading, error: fetchError } = useQuery({
     queryKey: ['ens-name', decodedName],
@@ -63,7 +72,27 @@ export default function NameDetailPage({ params }: PageProps) {
   const handleAddToCategory = () => {
     if (!selectedCategoryToAdd) return
     setError(null)
-    addMutation.mutate(selectedCategoryToAdd)
+    // Show confirmation modal
+    setConfirmModal({ isOpen: true, type: 'add', categoryName: selectedCategoryToAdd })
+  }
+
+  const handleRemoveSelected = () => {
+    if (selectedCategories.size === 0) return
+    setError(null)
+    // Show confirmation modal
+    setConfirmModal({ isOpen: true, type: 'remove', categories: Array.from(selectedCategories) })
+  }
+
+  const handleConfirmAction = () => {
+    if (confirmModal.type === 'add' && confirmModal.categoryName) {
+      addMutation.mutate(confirmModal.categoryName, {
+        onSettled: () => setConfirmModal({ isOpen: false, type: 'add' }),
+      })
+    } else if (confirmModal.type === 'remove' && confirmModal.categories) {
+      removeMutation.mutate(confirmModal.categories, {
+        onSettled: () => setConfirmModal({ isOpen: false, type: 'remove' }),
+      })
+    }
   }
 
   const showSuccess = (message: string) => {
@@ -81,12 +110,6 @@ export default function NameDetailPage({ params }: PageProps) {
       }
       return next
     })
-  }
-
-  const handleRemoveSelected = () => {
-    if (selectedCategories.size === 0) return
-    setError(null)
-    removeMutation.mutate(Array.from(selectedCategories))
   }
 
   const formatDate = (dateString: string | null) => {
@@ -133,8 +156,9 @@ export default function NameDetailPage({ params }: PageProps) {
   }
 
   const clubs = ensName.clubs || []
-  const hasListing = ensName.listings && ensName.listings.length > 0
-  const activeListing = hasListing ? ensName.listings[0] : null
+  const listings = ensName.listings || []
+  const hasListing = listings.length > 0
+  const activeListing = hasListing ? listings[0] : null
 
   return (
     <div className='p-8'>
@@ -191,6 +215,22 @@ export default function NameDetailPage({ params }: PageProps) {
               <div>
                 <p className='text-neutral'>Name</p>
                 <p className='font-mono'>{ensName.name}</p>
+                <a
+                  href={`https://grails.app/${ensName.name}`}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-primary hover:underline inline-flex items-center gap-1 text-xs mt-1'
+                >
+                  View on Grails
+                  <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+                    />
+                  </svg>
+                </a>
               </div>
               <div>
                 <p className='text-neutral'>Token ID</p>
@@ -203,7 +243,7 @@ export default function NameDetailPage({ params }: PageProps) {
                 <p className='break-all font-mono text-xs'>
                   {ensName.owner ? (
                     <a
-                      href={`https://etherscan.io/address/${ensName.owner}`}
+                      href={`https://grails.app/profile/${ensName.owner}`}
                       target='_blank'
                       rel='noopener noreferrer'
                       className='text-primary hover:underline'
@@ -237,7 +277,7 @@ export default function NameDetailPage({ params }: PageProps) {
               <div>
                 <p className='text-neutral'>Listed For</p>
                 <p className={activeListing ? 'text-success font-semibold' : ''}>
-                  {activeListing ? formatEth(activeListing.price_wei) : 'Not listed'}
+                  {activeListing ? formatEth(activeListing.price_wei || activeListing.price) : 'Not listed'}
                 </p>
               </div>
               <div>
@@ -268,17 +308,17 @@ export default function NameDetailPage({ params }: PageProps) {
           </div>
 
           {/* Active Listings */}
-          {ensName.listings && ensName.listings.length > 0 && (
+          {hasListing && (
             <div className='card'>
               <h2 className='mb-4 text-lg font-semibold'>
-                Active Listings ({ensName.listings.length})
+                Active Listings ({listings.length})
               </h2>
               <div className='space-y-3'>
-                {ensName.listings.map((listing, idx) => (
+                {listings.map((listing, idx) => (
                   <div key={listing.id || idx} className='bg-tertiary rounded-lg p-3'>
                     <div className='flex items-center justify-between'>
                       <div>
-                        <p className='text-success font-semibold'>{formatEth(listing.price_wei)}</p>
+                        <p className='text-success font-semibold'>{formatEth(listing.price_wei || listing.price)}</p>
                         <p className='text-neutral text-xs'>
                           Source: {listing.source || 'Unknown'}
                         </p>
@@ -448,6 +488,26 @@ export default function NameDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, type: 'add' })}
+        onConfirm={handleConfirmAction}
+        title={
+          confirmModal.type === 'add'
+            ? 'Add to Category'
+            : 'Remove from Categories'
+        }
+        message={
+          confirmModal.type === 'add'
+            ? `Are you sure you want to add "${ensName?.name || decodedName}" to the category "${confirmModal.categoryName}"?`
+            : `Are you sure you want to remove "${ensName?.name || decodedName}" from ${confirmModal.categories?.length || 0} category membership${(confirmModal.categories?.length || 0) !== 1 ? 's' : ''}? This action cannot be undone.`
+        }
+        confirmText={confirmModal.type === 'add' ? 'Add to Category' : 'Remove'}
+        variant={confirmModal.type === 'remove' ? 'danger' : 'default'}
+        isLoading={addMutation.isPending || removeMutation.isPending}
+      />
     </div>
   )
 }

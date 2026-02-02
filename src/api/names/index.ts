@@ -1,12 +1,17 @@
 // Listing info from grails-backend
 export interface NameListing {
   id: number
+  price: string
   price_wei: string
   currency_address: string
   status: string
   seller_address: string
+  order_hash?: string
   expires_at: string
+  created_at?: string
   source: string
+  broker_address?: string | null
+  broker_fee_bps?: number | null
 }
 
 // Response from grails-backend /names/:name proxied through our API

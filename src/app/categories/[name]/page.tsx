@@ -4,6 +4,7 @@ import { useState, use } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchCategory, updateCategory, addNames, removeNames } from '@/api/categories'
+import ConfirmModal from '@/components/ConfirmModal'
 
 type PageProps = {
   params: Promise<{ name: string }>
@@ -22,6 +23,13 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [nameSearch, setNameSearch] = useState('')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean
+    type: 'add' | 'remove'
+    names: string[]
+  }>({ isOpen: false, type: 'add', names: [] })
 
   const { data, isLoading, error: fetchError } = useQuery({
     queryKey: ['category', name, page],
@@ -111,13 +119,27 @@ export default function CategoryDetailPage({ params }: PageProps) {
       return
     }
 
-    addNamesMutation.mutate(names)
+    // Show confirmation modal
+    setConfirmModal({ isOpen: true, type: 'add', names })
   }
 
   const handleRemoveSelected = () => {
     if (selectedNames.size === 0) return
     setError('')
-    removeNamesMutation.mutate(Array.from(selectedNames))
+    // Show confirmation modal
+    setConfirmModal({ isOpen: true, type: 'remove', names: Array.from(selectedNames) })
+  }
+
+  const handleConfirmAction = () => {
+    if (confirmModal.type === 'add') {
+      addNamesMutation.mutate(confirmModal.names, {
+        onSettled: () => setConfirmModal({ isOpen: false, type: 'add', names: [] }),
+      })
+    } else {
+      removeNamesMutation.mutate(confirmModal.names, {
+        onSettled: () => setConfirmModal({ isOpen: false, type: 'remove', names: [] }),
+      })
+    }
   }
 
   const toggleName = (ensName: string) => {
@@ -439,6 +461,22 @@ export default function CategoryDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, type: 'add', names: [] })}
+        onConfirm={handleConfirmAction}
+        title={confirmModal.type === 'add' ? 'Add Names to Category' : 'Remove Names from Category'}
+        message={
+          confirmModal.type === 'add'
+            ? `Are you sure you want to add ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} to "${name}"?`
+            : `Are you sure you want to remove ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} from "${name}"? This action cannot be undone.`
+        }
+        confirmText={confirmModal.type === 'add' ? 'Add Names' : 'Remove Names'}
+        variant={confirmModal.type === 'remove' ? 'danger' : 'default'}
+        isLoading={addNamesMutation.isPending || removeNamesMutation.isPending}
+      />
     </div>
   )
 }
