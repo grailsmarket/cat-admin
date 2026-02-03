@@ -60,11 +60,18 @@ export function middleware(request: NextRequest) {
   const ip = getClientIp(request)
   const config = getRateLimitConfig(pathname)
   
-  // Use different bucket for write operations
+  // Use different buckets for different endpoint types
   const isWriteOperation = ['POST', 'PUT', 'DELETE'].includes(request.method)
-  const bucketKey = isWriteOperation 
-    ? `write:${ip}` 
-    : `read:${ip}`
+  const isAuthEndpoint = pathname.startsWith('/api/auth/')
+  
+  let bucketKey: string
+  if (isAuthEndpoint) {
+    bucketKey = `auth:${ip}`
+  } else if (isWriteOperation) {
+    bucketKey = `write:${ip}`
+  } else {
+    bucketKey = `read:${ip}`
+  }
   
   const effectiveLimit = isWriteOperation ? RATE_LIMITS.write.limit : config.limit
   const effectiveWindow = isWriteOperation ? RATE_LIMITS.write.windowMs : config.windowMs
