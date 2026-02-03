@@ -10,8 +10,8 @@ type SortDirection = 'asc' | 'desc'
 
 export default function CategoriesPage() {
   const [search, setSearch] = useState('')
-  const [sortField, setSortField] = useState<SortField>('name')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortField, setSortField] = useState<SortField>('created_at')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['categories'],

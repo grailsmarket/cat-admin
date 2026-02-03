@@ -169,6 +169,20 @@ export default function NewCategoryPage() {
   const parsedNames = useMemo(() => {
     const lines = initialNames.split('\n').map((n) => n.trim()).filter((n) => n.length > 0)
     return lines.map(name => {
+      // Check for invalid TLDs (only .eth or no TLD allowed)
+      const dotIndex = name.lastIndexOf('.')
+      if (dotIndex !== -1) {
+        const tld = name.slice(dotIndex)
+        if (tld !== '.eth') {
+          return {
+            original: name,
+            normalized: null,
+            isValid: false,
+            reason: `invalid TLD "${tld}" - only .eth is allowed`
+          }
+        }
+      }
+      
       // Add .eth if missing
       const fullName = name.endsWith('.eth') ? name : `${name}.eth`
       const normalized = normalizeEnsName(fullName)
@@ -195,12 +209,6 @@ export default function NewCategoryPage() {
     <div className='p-8'>
       {/* Header */}
       <div className='mx-auto mb-8 max-w-2xl'>
-        <Link href='/categories' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>
-          <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
-          </svg>
-          Back to Categories
-        </Link>
         <h1 className='text-3xl font-bold'>Create New Category</h1>
         <p className='text-neutral mt-1'>Add a new category to organize ENS names.</p>
       </div>
@@ -295,14 +303,59 @@ export default function NewCategoryPage() {
             Optionally add ENS names to this category. You can also add them later.
           </p>
 
+          {/* CSV Upload */}
+          <div className='mb-4'>
+            <label className='mb-2 block text-sm font-medium'>Upload CSV</label>
+            <div className='flex items-center gap-3'>
+              <input
+                type='file'
+                accept='.csv,.txt'
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = (event) => {
+                    const content = event.target?.result as string
+                    if (content) {
+                      // Parse CSV: handle comma-separated, newline-separated, or single column
+                      const names = content
+                        .split(/[\n,]/)
+                        .map(n => n.trim().replace(/^["']|["']$/g, '')) // Remove quotes
+                        .filter(n => n.length > 0 && !n.toLowerCase().includes('name')) // Skip headers
+                      const newNames = names.join('\n')
+                      setInitialNames(prev => prev ? `${prev}\n${newNames}` : newNames)
+                    }
+                  }
+                  reader.readAsText(file)
+                  e.target.value = '' // Reset to allow re-upload
+                }}
+                className='text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-primary/80 file:cursor-pointer'
+                disabled={createMutation.isPending || !isSlugValid}
+              />
+              <span className='text-neutral text-xs'>CSV or TXT with one name per line or comma-separated</span>
+            </div>
+          </div>
+
           <div>
-            <label htmlFor='names' className='mb-2 block text-sm font-medium'>
-              ENS Names {nameCount > 0 && (
-                <span className={hasInvalidNames ? 'text-error' : 'text-neutral'}>
-                  ({nameCount} names{hasInvalidNames ? `, ${invalidNames.length} invalid` : ''})
-                </span>
+            <div className='flex items-center justify-between mb-2'>
+              <label htmlFor='names' className='block text-sm font-medium'>
+                ENS Names {nameCount > 0 && (
+                  <span className={hasInvalidNames ? 'text-error' : 'text-neutral'}>
+                    ({nameCount} names{hasInvalidNames ? `, ${invalidNames.length} invalid` : ''})
+                  </span>
+                )}
+              </label>
+              {nameCount > 0 && (
+                <button
+                  type='button'
+                  onClick={() => setInitialNames('')}
+                  className='text-xs text-neutral hover:text-error'
+                  disabled={createMutation.isPending}
+                >
+                  Clear all
+                </button>
               )}
-            </label>
+            </div>
             <textarea
               id='names'
               value={initialNames}

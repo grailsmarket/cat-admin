@@ -1,15 +1,18 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useUserContext } from '@/context/user'
 import { useEnsName, useEnsAvatar } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { userAddress, handleSignOut } = useUserContext()
+  const [quickSearch, setQuickSearch] = useState('')
 
   // Fetch ENS name and avatar
   const { data: ensName } = useEnsName({
@@ -22,30 +25,62 @@ export default function Sidebar() {
   })
 
   const isActive = (path: string) => {
-    if (path === '/categories') {
-      return pathname === '/categories' || pathname === '/categories/new'
-    }
     return pathname.startsWith(path)
+  }
+
+  const handleQuickSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (quickSearch.trim()) {
+      const name = quickSearch.trim().endsWith('.eth') 
+        ? quickSearch.trim() 
+        : `${quickSearch.trim()}.eth`
+      router.push(`/names/${encodeURIComponent(name)}`)
+      setQuickSearch('')
+    }
   }
 
   return (
     <aside className='bg-secondary border-border sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r'>
       {/* Logo */}
       <div className='border-border border-b p-6'>
-        <h1 className='text-xl font-bold'>Cat Admin</h1>
-        <p className='text-neutral text-sm'>Categories Management</p>
+        <div className='flex items-center gap-3'>
+          <Image
+            src='/logo.png'
+            alt='Cat Admin'
+            width={48}
+            height={48}
+            className='h-12 w-12'
+            priority
+            unoptimized
+          />
+          <div>
+            <h1 className='text-xl font-bold'>Cat Admin</h1>
+            <p className='text-neutral text-sm'>Grails Category Management</p>
+          </div>
+        </div>
       </div>
 
       {/* Navigation */}
-      <nav className='flex-1 p-4'>
+      <nav className='flex flex-1 flex-col p-4'>
+        {/* Quick search bar */}
+        <form onSubmit={handleQuickSearch} className='mb-4'>
+          <input
+            type='text'
+            value={quickSearch}
+            onChange={(e) => setQuickSearch(e.target.value)}
+            placeholder='Quick name search...'
+            className='w-full rounded-lg border border-border bg-tertiary px-3 py-2 text-sm placeholder:text-neutral focus:border-primary focus:outline-none'
+          />
+        </form>
+
         <ul className='space-y-1'>
           <li>
-            <Link
-              href='/categories'
-              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                isActive('/categories')
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-foreground hover:bg-tertiary'
+            {/* Parent: Categories */}
+            <div
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium ${
+                pathname === '/categories' || pathname.startsWith('/categories/')
+                  ? 'text-primary'
+                  : 'text-foreground'
               }`}
             >
               <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
@@ -57,6 +92,44 @@ export default function Sidebar() {
                 />
               </svg>
               Categories
+            </div>
+            {/* Sub-nav: View Categories */}
+            <Link
+              href='/categories'
+              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                pathname === '/categories'
+                  ? 'text-primary font-medium'
+                  : 'text-neutral hover:text-foreground'
+              }`}
+            >
+              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M4 6h16M4 10h16M4 14h16M4 18h16'
+                />
+              </svg>
+              View Categories
+            </Link>
+            {/* Sub-nav: New Category */}
+            <Link
+              href='/categories/new'
+              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                pathname === '/categories/new'
+                  ? 'text-primary font-medium'
+                  : 'text-neutral hover:text-foreground'
+              }`}
+            >
+              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z'
+                />
+              </svg>
+              New Category
             </Link>
           </li>
           <li>
@@ -79,27 +152,29 @@ export default function Sidebar() {
               Name Lookup
             </Link>
           </li>
-          <li>
-            <Link
-              href='/activity'
-              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                isActive('/activity')
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-foreground hover:bg-tertiary'
-              }`}
-            >
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
-                />
-              </svg>
-              Activity Log
-            </Link>
-          </li>
         </ul>
+
+        {/* Activity Log - pinned to bottom */}
+        <div className='mt-auto pt-4'>
+          <Link
+            href='/activity'
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+              isActive('/activity')
+                ? 'bg-primary/10 text-primary'
+                : 'text-foreground hover:bg-tertiary'
+            }`}
+          >
+            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+              />
+            </svg>
+            Activity Log
+          </Link>
+        </div>
       </nav>
 
       {/* User section */}
