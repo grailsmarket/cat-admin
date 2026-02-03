@@ -33,7 +33,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
-    type: 'add' | 'remove'
+    type: 'add' | 'remove' | 'description'
     names: string[]
   }>({ isOpen: false, type: 'add', names: [] })
 
@@ -111,7 +111,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
   }
 
   const handleSaveDescription = () => {
-    updateMutation.mutate()
+    setConfirmModal({ isOpen: true, type: 'description', names: [] })
   }
 
   const handleAddNames = () => {
@@ -142,9 +142,13 @@ export default function CategoryDetailPage({ params }: PageProps) {
       addNamesMutation.mutate(confirmModal.names, {
         onSettled: () => setConfirmModal({ isOpen: false, type: 'add', names: [] }),
       })
-    } else {
+    } else if (confirmModal.type === 'remove') {
       removeNamesMutation.mutate(confirmModal.names, {
         onSettled: () => setConfirmModal({ isOpen: false, type: 'remove', names: [] }),
+      })
+    } else if (confirmModal.type === 'description') {
+      updateMutation.mutate(undefined, {
+        onSettled: () => setConfirmModal({ isOpen: false, type: 'description', names: [] }),
       })
     }
   }
@@ -571,15 +575,29 @@ export default function CategoryDetailPage({ params }: PageProps) {
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ isOpen: false, type: 'add', names: [] })}
         onConfirm={handleConfirmAction}
-        title={confirmModal.type === 'add' ? 'Add Names to Category' : 'Remove Names from Category'}
+        title={
+          confirmModal.type === 'add'
+            ? 'Add Names to Category'
+            : confirmModal.type === 'remove'
+              ? 'Remove Names from Category'
+              : 'Update Category Description'
+        }
         message={
           confirmModal.type === 'add'
             ? `Are you sure you want to add ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} to "${name}"?`
-            : `Are you sure you want to remove ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} from "${name}"? This action cannot be undone.`
+            : confirmModal.type === 'remove'
+              ? `Are you sure you want to remove ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} from "${name}"? This action cannot be undone.`
+              : `Are you sure you want to update the description for "${name}"?`
         }
-        confirmText={confirmModal.type === 'add' ? 'Add Names' : 'Remove Names'}
+        confirmText={
+          confirmModal.type === 'add'
+            ? 'Add Names'
+            : confirmModal.type === 'remove'
+              ? 'Remove Names'
+              : 'Update Description'
+        }
         variant={confirmModal.type === 'remove' ? 'danger' : 'default'}
-        isLoading={addNamesMutation.isPending || removeNamesMutation.isPending}
+        isLoading={addNamesMutation.isPending || removeNamesMutation.isPending || updateMutation.isPending}
       />
     </div>
   )
