@@ -2,7 +2,7 @@
 
 import { useState, use } from 'react'
 import Link from 'next/link'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchCategory, updateCategory, addNames, removeNames } from '@/api/categories'
 import ConfirmModal from '@/components/ConfirmModal'
 
@@ -31,9 +31,10 @@ export default function CategoryDetailPage({ params }: PageProps) {
     names: string[]
   }>({ isOpen: false, type: 'add', names: [] })
 
-  const { data, isLoading, error: fetchError } = useQuery({
+  const { data, isLoading, isFetching, error: fetchError } = useQuery({
     queryKey: ['category', name, page],
     queryFn: () => fetchCategory(name, page, 50),
+    placeholderData: keepPreviousData, // Keep showing previous data while fetching new page
   })
 
   const category = data?.data
@@ -389,7 +390,14 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
             {filteredNames && filteredNames.length > 0 && (
               <>
-                <div className='border-border max-h-[70vh] overflow-y-auto rounded-lg border'>
+                <div className='relative'>
+                  {/* Loading overlay */}
+                  {isFetching && (
+                    <div className='absolute inset-0 z-10 flex items-center justify-center rounded-lg' style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+                      <div className='border-primary h-10 w-10 animate-spin rounded-full border-4 border-t-transparent' />
+                    </div>
+                  )}
+                  <div className='border-border max-h-[70vh] overflow-y-auto rounded-lg border'>
                   <table className='min-w-full'>
                     <thead className='bg-secondary sticky top-0'>
                       <tr>
@@ -422,6 +430,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
                 {/* Pagination */}
@@ -434,14 +443,14 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     <div className='flex gap-2'>
                       <button
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        disabled={page === 1}
+                        disabled={page === 1 || isFetching}
                         className='btn btn-secondary text-sm disabled:opacity-50'
                       >
                         Previous
                       </button>
                       <button
                         onClick={() => setPage((p) => Math.min(category.pagination.totalPages, p + 1))}
-                        disabled={page === category.pagination.totalPages}
+                        disabled={page === category.pagination.totalPages || isFetching}
                         className='btn btn-secondary text-sm disabled:opacity-50'
                       >
                         Next
