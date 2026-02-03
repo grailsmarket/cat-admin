@@ -8,9 +8,12 @@ type RouteParams = {
   params: Promise<{ name: string }>
 }
 
-const GRAILS_API_URL = process.env.GRAILS_API_URL
+type ClubMembership = {
+  ens_name: string
+  added_at: string
+}
 
-// GET /api/cats/[name] - Get category details with members (via grails-backend)
+// GET /api/cats/[name] - Get category details with names (direct DB)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { name } = await params
@@ -26,66 +29,64 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (!GRAILS_API_URL) {
-      return NextResponse.json({ error: 'GRAILS_API_URL not configured' }, { status: 503 })
-    }
-
     // Get pagination params
     const url = new URL(request.url)
     const page = parseInt(url.searchParams.get('page') || '1')
     const limit = parseInt(url.searchParams.get('limit') || '50')
+    const offset = (page - 1) * limit
 
-    // Fetch from grails-backend /clubs/:name endpoint
-    const apiUrl = `${GRAILS_API_URL}/clubs/${encodeURIComponent(name)}?page=${page}&limit=${limit}`
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    })
+    // Get category details
+    const [category] = await query<Category>(`
+      SELECT name, description, member_count AS name_count, created_at, updated_at
+      FROM clubs
+      WHERE name = $1
+    `, [name])
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        return NextResponse.json({ error: 'Category not found' }, { status: 404 })
-      }
-      return NextResponse.json({ error: 'Failed to fetch category' }, { status: response.status })
+    if (!category) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    const data = await response.json()
+    // Get paginated names in this category
+    const names = await query<ClubMembership>(`
+      SELECT ens_name, added_at
+      FROM club_memberships
+      WHERE club_name = $1
+      ORDER BY added_at DESC
+      LIMIT $2 OFFSET $3
+    `, [name, limit, offset])
 
-    if (!data.success) {
-      return NextResponse.json({ error: data.error || 'Category not found' }, { status: 404 })
-    }
+    const nameCount = category.name_count ?? 0
+    const totalPages = Math.ceil(nameCount / limit) || 1
 
-    const club = data.data
-
-    // Calculate name count from the names array or fall back to member_count
-    const names = club.names || []
-    const nameCount = club.member_count ?? names.length
-
-    // Map to our response format
     return NextResponse.json({
       success: true,
       data: {
-        name: club.name,
-        description: club.description,
+        name: category.name,
+        description: category.description,
         name_count: nameCount,
-        created_at: club.created_at,
-        updated_at: club.updated_at,
-        names: names.map((n: { name: string; added_at?: string }) => ({
-          ens_name: n.name,
-          added_at: n.added_at || null,
+        created_at: category.created_at,
+        updated_at: category.updated_at,
+        names: names.map((n) => ({
+          ens_name: n.ens_name,
+          added_at: n.added_at,
         })),
         pagination: {
           page,
           limit,
           totalNames: nameCount,
-          totalPages: Math.ceil(nameCount / limit) || 1,
+          totalPages,
         },
       },
     })
   } catch (error) {
     console.error('Get category error:', error)
+    
+    if (error instanceof Error && error.message.includes('DATABASE_URL')) {
+      return NextResponse.json({ 
+        error: 'Database not configured. Set DATABASE_URL environment variable.' 
+      }, { status: 503 })
+    }
+    
     return NextResponse.json({ error: 'Failed to get category' }, { status: 500 })
   }
 }

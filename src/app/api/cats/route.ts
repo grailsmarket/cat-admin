@@ -4,9 +4,7 @@ import { query } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
 import type { Category } from '@/types'
 
-const GRAILS_API_URL = process.env.GRAILS_API_URL
-
-// GET /api/cats - List all categories (via grails-backend)
+// GET /api/cats - List all categories (direct DB)
 export async function GET() {
   try {
     const cookieStore = await cookies()
@@ -21,44 +19,28 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (!GRAILS_API_URL) {
-      return NextResponse.json({ 
-        error: 'GRAILS_API_URL not configured',
-        data: [] 
-      }, { status: 503 })
-    }
-
-    // Fetch from grails-backend /clubs endpoint
-    const response = await fetch(`${GRAILS_API_URL}/clubs`, {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      console.error('Failed to fetch clubs from grails-backend:', response.status)
-      return NextResponse.json({ error: 'Failed to fetch categories' }, { status: response.status })
-    }
-
-    const data = await response.json()
-
-    if (!data.success) {
-      return NextResponse.json({ error: data.error || 'Failed to fetch categories' }, { status: 500 })
-    }
-
-    // Map to our Category type (grails-backend returns more fields)
-    const categories: Category[] = data.data.clubs.map((club: Record<string, unknown>) => ({
-      name: club.name,
-      description: club.description,
-      name_count: club.member_count ?? 0,
-      created_at: club.created_at,
-      updated_at: club.updated_at,
-    }))
+    // Query all categories from database
+    const categories = await query<Category>(`
+      SELECT 
+        name, 
+        description, 
+        member_count AS name_count, 
+        created_at, 
+        updated_at
+      FROM clubs
+      ORDER BY name ASC
+    `)
 
     return NextResponse.json({ success: true, data: categories })
   } catch (error) {
     console.error('List categories error:', error)
+    
+    if (error instanceof Error && error.message.includes('DATABASE_URL')) {
+      return NextResponse.json({ 
+        error: 'Database not configured. Set DATABASE_URL environment variable.' 
+      }, { status: 503 })
+    }
+    
     return NextResponse.json({ error: 'Failed to list categories' }, { status: 500 })
   }
 }
