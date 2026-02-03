@@ -72,8 +72,8 @@ export async function withActorTransaction<T>(
     await client.query('BEGIN')
     
     // Set the actor address for audit logging
-    // SET LOCAL scopes to this transaction only - resets after COMMIT/ROLLBACK
-    await client.query('SET LOCAL app.actor_address = $1', [actorAddress])
+    // set_config with 'true' scopes to this transaction only - resets after COMMIT/ROLLBACK
+    await client.query('SELECT set_config($1, $2, true)', ['app.actor_address', actorAddress])
     
     const result = await callback(client)
     await client.query('COMMIT')
