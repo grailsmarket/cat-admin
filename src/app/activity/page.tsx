@@ -456,11 +456,13 @@ export default function ActivityPage() {
                           className={hasSubEvents ? 'cursor-pointer hover:bg-secondary/50' : ''}
                           onClick={hasSubEvents ? toggleExpand : undefined}
                         >
-                          <td 
-                            className='text-neutral whitespace-nowrap text-sm cursor-default'
-                            title={formatFullDate(entry.created_at)}
-                          >
-                            {formatRelativeTime(entry.created_at)}
+                          <td className='text-neutral whitespace-nowrap text-sm'>
+                            <span className='group relative cursor-default'>
+                              {formatRelativeTime(entry.created_at)}
+                              <span className='bg-secondary border-border absolute bottom-full left-0 mb-1 hidden whitespace-nowrap rounded border px-2 py-1 text-xs group-hover:block z-10'>
+                                {formatFullDate(entry.created_at)}
+                              </span>
+                            </span>
                           </td>
                           <td className='text-sm'>
                             <div className='flex items-center gap-2'>

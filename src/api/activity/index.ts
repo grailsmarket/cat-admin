@@ -36,6 +36,27 @@ export type ActivityFilters = {
   days?: number // Limit to last N days
 }
 
+export type ActivitySummary = {
+  actor: string
+  added: number
+  removed: number
+  created: number
+  updated: number
+  deleted: number
+  categoryBreakdown: Record<string, { added: number; removed: number }>
+}
+
+export async function fetchActivitySummary(): Promise<ActivitySummary[]> {
+  const response = await fetch('/api/activity/summary')
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to fetch activity summary')
+  }
+
+  return data.data || []
+}
+
 export async function fetchActivity(
   page: number = 1,
   limit: number = 50,
