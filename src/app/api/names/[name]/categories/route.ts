@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
-import { normalizeEnsName } from '@/lib/normalize'
+import { normalizeEnsName, safeNormalizeEnsName } from '@/lib/normalize'
 
 type RouteParams = {
   params: Promise<{ name: string }>
@@ -31,23 +31,31 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Categories array is required' }, { status: 400 })
     }
 
-    // Normalize the ENS name
-    const normalizedName = normalizeEnsName(rawName)
-    if (!normalizedName) {
-      return NextResponse.json({ error: 'Invalid ENS name format' }, { status: 400 })
-    }
+    // Try strict normalization first, fall back to safe normalization for invalid names
+    // This allows removing invalid names that slipped into categories
+    const normalizedName = normalizeEnsName(rawName) || safeNormalizeEnsName(rawName)
 
-    // Verify ENS name exists (case-insensitive)
+    // Check ens_names table first
     const [ensName] = await query<{ name: string }>(`
       SELECT name FROM ens_names WHERE LOWER(name) = LOWER($1)
     `, [normalizedName])
 
-    if (!ensName) {
-      return NextResponse.json({ error: 'ENS name not found' }, { status: 404 })
+    // Use name from ens_names if found, otherwise check club_memberships directly
+    let dbName: string
+    
+    if (ensName) {
+      dbName = ensName.name
+    } else {
+      // For invalid/orphaned names, check if they exist in club_memberships directly
+      const [membership] = await query<{ ens_name: string }>(`
+        SELECT ens_name FROM club_memberships WHERE LOWER(ens_name) = LOWER($1) LIMIT 1
+      `, [normalizedName])
+      
+      if (!membership) {
+        return NextResponse.json({ error: 'ENS name not found in any category' }, { status: 404 })
+      }
+      dbName = membership.ens_name
     }
-
-    // Use the actual name from DB (correct casing)
-    const dbName = ensName.name
 
     // Remove memberships in a transaction with actor tracking for audit log
     const result = await withActorTransaction(address, async (client) => {

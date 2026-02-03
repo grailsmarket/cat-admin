@@ -18,7 +18,7 @@ export interface NameListing {
 export interface EnsNameDetails {
   // Core info
   name: string
-  token_id: string
+  token_id: string | null
   owner: string | null
   
   // Dates
@@ -44,6 +44,9 @@ export interface EnsNameDetails {
   // Engagement
   view_count: number
   watchers_count: number
+  
+  // Local-only flag (name exists in DB but not in grails-backend)
+  _localOnly?: boolean
 }
 
 // Fetch ENS name details (proxied from grails-backend)

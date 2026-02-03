@@ -187,6 +187,24 @@ export default function NameDetailPage({ params }: PageProps) {
         </p>
       </div>
 
+      {/* Warning for local-only names (invalid ENS names that exist in categories) */}
+      {ensName._localOnly && (
+        <div className='bg-warning/10 border-warning mb-6 rounded-lg border p-4'>
+          <div className='flex items-start gap-3'>
+            <svg className='h-5 w-5 text-warning flex-shrink-0 mt-0.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' />
+            </svg>
+            <div>
+              <p className='text-warning font-medium'>Invalid or Unrecognized ENS Name</p>
+              <p className='text-neutral text-sm mt-1'>
+                This name is not a valid ENS name (may be too short, expired, or malformed), but it exists in your categories. 
+                You can remove it from categories below.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success message */}
       {successMessage && (
         <div className='bg-success/10 border-success mb-6 rounded-lg border p-4'>
@@ -208,7 +226,7 @@ export default function NameDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      <div className='grid grid-cols-1 gap-6 lg:grid-cols-4'>
+      <div className={`grid grid-cols-1 gap-6 ${ensName._localOnly ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
         {/* Left column - Name details */}
         <div className='space-y-6 lg:col-span-1'>
           {/* Core Details */}
@@ -218,22 +236,24 @@ export default function NameDetailPage({ params }: PageProps) {
               <div>
                 <p className='text-neutral'>Name</p>
                 <p className='font-mono'>{ensName.name}</p>
-                <a
-                  href={`https://grails.app/${ensName.name}`}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='text-primary hover:underline inline-flex items-center gap-1 text-xs mt-1'
-                >
-                  View on Grails
-                  <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth={2}
-                      d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
-                    />
-                  </svg>
-                </a>
+                {!ensName._localOnly && (
+                  <a
+                    href={`https://grails.app/${ensName.name}`}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='text-primary hover:underline inline-flex items-center gap-1 text-xs mt-1'
+                  >
+                    View on Grails
+                    <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+                      />
+                    </svg>
+                  </a>
+                )}
               </div>
               <div>
                 <p className='text-neutral'>Token ID</p>
@@ -273,105 +293,109 @@ export default function NameDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Market Data - Collapsible */}
-          <div className='card'>
-            <button
-              onClick={() => setShowMarketDetails(!showMarketDetails)}
-              className='flex w-full items-center justify-between text-left'
-            >
-              <h2 className='text-lg font-semibold'>Market</h2>
-              <svg
-                className={`h-5 w-5 text-neutral transition-transform ${showMarketDetails ? 'rotate-180' : ''}`}
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke='currentColor'
+          {/* Market Data - Collapsible (hide for local-only names) */}
+          {!ensName._localOnly && (
+            <div className='card'>
+              <button
+                onClick={() => setShowMarketDetails(!showMarketDetails)}
+                className='flex w-full items-center justify-between text-left'
               >
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 9l-7 7-7-7' />
-              </svg>
-            </button>
-            {/* Summary - always visible */}
-            <div className='mt-3 flex items-center gap-4 text-sm'>
-              <div>
-                <span className='text-neutral'>Listed: </span>
-                <span className={activeListing ? 'text-success font-semibold' : ''}>
-                  {activeListing ? formatEth(activeListing.price_wei || activeListing.price) : 'No'}
-                </span>
-              </div>
-              {ensName.last_sale_price && (
+                <h2 className='text-lg font-semibold'>Market</h2>
+                <svg
+                  className={`h-5 w-5 text-neutral transition-transform ${showMarketDetails ? 'rotate-180' : ''}`}
+                  fill='none'
+                  viewBox='0 0 24 24'
+                  stroke='currentColor'
+                >
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 9l-7 7-7-7' />
+                </svg>
+              </button>
+              {/* Summary - always visible */}
+              <div className='mt-3 flex items-center gap-4 text-sm'>
                 <div>
-                  <span className='text-neutral'>Last: </span>
-                  <span>{formatEth(ensName.last_sale_price)}</span>
+                  <span className='text-neutral'>Listed: </span>
+                  <span className={activeListing ? 'text-success font-semibold' : ''}>
+                    {activeListing ? formatEth(activeListing.price_wei || activeListing.price) : 'No'}
+                  </span>
                 </div>
-              )}
-            </div>
-            {/* Expanded details */}
-            {showMarketDetails && (
-              <div className='border-border mt-4 space-y-4 border-t pt-4 text-sm'>
-                <div>
-                  <p className='text-neutral'>Highest Offer</p>
-                  <p>{formatEth(ensName.highest_offer_wei)}</p>
-                </div>
-                <div className='border-border border-t pt-4'>
-                  <p className='text-neutral mb-2'>Last Sale</p>
-                  <div className='grid grid-cols-2 gap-4'>
-                    <div>
-                      <p className='text-neutral text-xs'>Price</p>
-                      <p>
-                        {formatEth(ensName.last_sale_price)}
-                        {ensName.last_sale_price_usd && (
-                          <span className='text-neutral ml-1 text-xs'>
-                            (${parseFloat(ensName.last_sale_price_usd).toFixed(0)})
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div>
-                      <p className='text-neutral text-xs'>Date</p>
-                      <p>{formatDate(ensName.last_sale_date)}</p>
-                    </div>
-                  </div>
-                </div>
-                {/* Active Listings */}
-                {hasListing && (
-                  <div className='border-border border-t pt-4'>
-                    <p className='text-neutral mb-2'>Active Listings ({listings.length})</p>
-                    <div className='space-y-2'>
-                      {listings.map((listing, idx) => (
-                        <div key={listing.id || idx} className='bg-tertiary rounded-lg p-2'>
-                          <div className='flex items-center justify-between'>
-                            <div>
-                              <p className='text-success font-semibold text-sm'>{formatEth(listing.price_wei || listing.price)}</p>
-                              <p className='text-neutral text-xs'>
-                                {listing.source || 'Unknown'}
-                              </p>
-                            </div>
-                            <div className='text-right text-xs'>
-                              <p>{formatDate(listing.expires_at)}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                {ensName.last_sale_price && (
+                  <div>
+                    <span className='text-neutral'>Last: </span>
+                    <span>{formatEth(ensName.last_sale_price)}</span>
                   </div>
                 )}
               </div>
-            )}
-          </div>
+              {/* Expanded details */}
+              {showMarketDetails && (
+                <div className='border-border mt-4 space-y-4 border-t pt-4 text-sm'>
+                  <div>
+                    <p className='text-neutral'>Highest Offer</p>
+                    <p>{formatEth(ensName.highest_offer_wei)}</p>
+                  </div>
+                  <div className='border-border border-t pt-4'>
+                    <p className='text-neutral mb-2'>Last Sale</p>
+                    <div className='grid grid-cols-2 gap-4'>
+                      <div>
+                        <p className='text-neutral text-xs'>Price</p>
+                        <p>
+                          {formatEth(ensName.last_sale_price)}
+                          {ensName.last_sale_price_usd && (
+                            <span className='text-neutral ml-1 text-xs'>
+                              (${parseFloat(ensName.last_sale_price_usd).toFixed(0)})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className='text-neutral text-xs'>Date</p>
+                        <p>{formatDate(ensName.last_sale_date)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Active Listings */}
+                  {hasListing && (
+                    <div className='border-border border-t pt-4'>
+                      <p className='text-neutral mb-2'>Active Listings ({listings.length})</p>
+                      <div className='space-y-2'>
+                        {listings.map((listing, idx) => (
+                          <div key={listing.id || idx} className='bg-tertiary rounded-lg p-2'>
+                            <div className='flex items-center justify-between'>
+                              <div>
+                                <p className='text-success font-semibold text-sm'>{formatEth(listing.price_wei || listing.price)}</p>
+                                <p className='text-neutral text-xs'>
+                                  {listing.source || 'Unknown'}
+                                </p>
+                              </div>
+                              <div className='text-right text-xs'>
+                                <p>{formatDate(listing.expires_at)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Engagement */}
-          <div className='card'>
-            <h2 className='mb-4 text-lg font-semibold'>Engagement</h2>
-            <div className='grid grid-cols-2 gap-4 text-sm'>
-              <div>
-                <p className='text-neutral'>Views</p>
-                <p className='text-xl font-bold'>{ensName.view_count.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className='text-neutral'>Watchers</p>
-                <p className='text-xl font-bold'>{ensName.watchers_count.toLocaleString()}</p>
+          {/* Engagement (hide for local-only names) */}
+          {!ensName._localOnly && (
+            <div className='card'>
+              <h2 className='mb-4 text-lg font-semibold'>Engagement</h2>
+              <div className='grid grid-cols-2 gap-4 text-sm'>
+                <div>
+                  <p className='text-neutral'>Views</p>
+                  <p className='text-xl font-bold'>{ensName.view_count.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className='text-neutral'>Watchers</p>
+                  <p className='text-xl font-bold'>{ensName.watchers_count.toLocaleString()}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Middle column - Categories */}
@@ -497,13 +521,15 @@ export default function NameDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Right column - Activity */}
-        <div className='lg:col-span-1'>
-          <div className='card'>
-            <h2 className='mb-4 text-lg font-semibold'>Recent Activity</h2>
-            <ActivitySection name={ensName.name} limit={10} />
+        {/* Right column - Activity (hide for local-only names) */}
+        {!ensName._localOnly && (
+          <div className='lg:col-span-1'>
+            <div className='card'>
+              <h2 className='mb-4 text-lg font-semibold'>Recent Activity</h2>
+              <ActivitySection name={ensName.name} limit={10} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Confirmation Modal */}
