@@ -30,11 +30,19 @@ export async function fetchCategory(
   return response.json()
 }
 
+// Create category response with potential details
+export type CreateCategoryResponse = ApiResponse<Category> & {
+  details?: {
+    required?: string[]
+    checkUrl?: string
+  }
+}
+
 // Create category
 export async function createCategory(
   name: string,
   description?: string
-): Promise<ApiResponse<Category>> {
+): Promise<CreateCategoryResponse> {
   const response = await fetch('/api/cats', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

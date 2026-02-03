@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
+import { checkCategoryInGrails } from '@/lib/grails-check'
 import type { Category } from '@/types'
 
 // GET /api/cats - List all categories (direct DB)
@@ -82,6 +83,30 @@ export async function POST(request: NextRequest) {
 
     if (existing.length > 0) {
       return NextResponse.json({ error: 'Category already exists' }, { status: 409 })
+    }
+
+    // Check if category is set up in grails frontend
+    const grailsCheck = await checkCategoryInGrails(name)
+    if (!grailsCheck.isLive) {
+      const missing: string[] = []
+      if (!grailsCheck.checks.avatar) {
+        missing.push(`public/clubs/${name}/avatar.jpg`)
+      }
+      if (!grailsCheck.checks.header) {
+        missing.push(`public/clubs/${name}/header.jpeg (or .jpg/.png)`)
+      }
+      
+      return NextResponse.json({ 
+        error: 'Category images not found in Grails frontend. Please add images to grails-app first.',
+        details: {
+          required: missing,
+          checks: grailsCheck.checks,
+          checkUrls: {
+            avatar: `https://grails.app/clubs/${name}/avatar.jpg`,
+            header: `https://grails.app/clubs/${name}/header.jpeg`,
+          }
+        }
+      }, { status: 400 })
     }
 
     // Create category with actor tracking for audit log
