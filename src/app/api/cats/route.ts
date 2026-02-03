@@ -76,6 +76,20 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Limit name length to prevent abuse
+    if (name.length > 50) {
+      return NextResponse.json({ 
+        error: 'Name must be 50 characters or less' 
+      }, { status: 400 })
+    }
+
+    // Limit description length
+    if (description && description.length > 500) {
+      return NextResponse.json({ 
+        error: 'Description must be 500 characters or less' 
+      }, { status: 400 })
+    }
+
     // Check if category already exists
     const existing = await query<Category>(`
       SELECT name FROM clubs WHERE name = $1

@@ -29,10 +29,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Get pagination params
+    // Get pagination params with safe limits
     const url = new URL(request.url)
-    const page = parseInt(url.searchParams.get('page') || '1')
-    const limit = parseInt(url.searchParams.get('limit') || '50')
+    const MAX_LIMIT = 100
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1') || 1)
+    const requestedLimit = parseInt(url.searchParams.get('limit') || '50') || 50
+    const limit = Math.min(Math.max(1, requestedLimit), MAX_LIMIT)
     const offset = (page - 1) * limit
 
     // Get category details
@@ -109,6 +111,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const body = await request.json()
     const { description } = body
+
+    // Limit description length
+    if (description && description.length > 500) {
+      return NextResponse.json({ 
+        error: 'Description must be 500 characters or less' 
+      }, { status: 400 })
+    }
 
     // Check if category exists
     const [existing] = await query<Category>(`

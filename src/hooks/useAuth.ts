@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useAccount, useDisconnect } from 'wagmi'
 import { useQuery } from '@tanstack/react-query'
 import { AuthenticationStatus } from '@rainbow-me/rainbowkit'
-import { WEEK_IN_SECONDS } from '@/constants/time'
 import { verifySignature } from '@/api/auth/verifySignature'
 import { checkAuthentication } from '@/api/auth/checkAuthentication'
 import { logout } from '@/api/auth/logout'
@@ -45,8 +44,7 @@ export const useAuth = () => {
     if (!address) return
 
     if (currAddress && address.toLowerCase() !== currAddress.toLowerCase()) {
-      logout()
-      document.cookie = `token=; path=/; max-age=0;`
+      logout() // Server clears httpOnly cookie
       refetchAuthStatus()
       setCurrAddress(address)
       return
@@ -63,20 +61,15 @@ export const useAuth = () => {
       return
     }
 
-    // Cookie is set by the API route (httpOnly)
-    // But we also set a client-side cookie for the token for API calls
-    if (verifyRes.data.token) {
-      document.cookie = `token=${verifyRes.data.token}; path=/; max-age=${WEEK_IN_SECONDS};`
-    }
-
+    // Cookie is set by the API route (httpOnly) - no client-side storage needed
+    // API routes read from httpOnly cookies via cookies() server function
     return
   }
 
   const signOut = async () => {
     disconnect()
-    await logout()
+    await logout() // Server clears httpOnly cookie
     setCurrAddress(null)
-    document.cookie = `token=; path=/; max-age=0;`
     await refetchAuthStatus()
   }
 

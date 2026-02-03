@@ -25,8 +25,13 @@ const connectors = connectorsForWallets(
   ],
   {
     appName: APP_NAME,
-    // Fallback projectId for development - replace in production
-    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'd4f234136ca6a7efeed7abf93474125b',
+    projectId: (() => {
+      const id = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+      if (!id) {
+        throw new Error('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID environment variable is required')
+      }
+      return id
+    })(),
     appDescription: APP_DESCRIPTION,
     appUrl: APP_URL,
     appIcon: APP_ICON,

@@ -464,16 +464,20 @@ export default function NameDetailPage({ params }: PageProps) {
                     <tr>
                       <th className='w-10'></th>
                       <th>Category</th>
-                      <th className='w-20'></th>
                     </tr>
                   </thead>
                   <tbody>
                     {clubs.map((categoryName) => (
                       <tr
                         key={categoryName}
-                        className={selectedCategories.has(categoryName) ? 'bg-primary/5' : ''}
+                        className={`cursor-pointer transition-colors hover:bg-tertiary ${selectedCategories.has(categoryName) ? 'bg-primary/5' : ''}`}
+                        onClick={(e) => {
+                          // Don't navigate if clicking on checkbox
+                          if ((e.target as HTMLElement).tagName === 'INPUT') return
+                          window.location.href = `/categories/${encodeURIComponent(categoryName)}`
+                        }}
                       >
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <input
                             type='checkbox'
                             checked={selectedCategories.has(categoryName)}
@@ -482,22 +486,7 @@ export default function NameDetailPage({ params }: PageProps) {
                           />
                         </td>
                         <td>
-                          <span className='font-medium'>{categoryName}</span>
-                        </td>
-                        <td>
-                          <Link
-                            href={`/categories/${encodeURIComponent(categoryName)}`}
-                            className='text-neutral hover:text-primary'
-                          >
-                            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                              <path
-                                strokeLinecap='round'
-                                strokeLinejoin='round'
-                                strokeWidth={2}
-                                d='M9 5l7 7-7 7'
-                              />
-                            </svg>
-                          </Link>
+                          <span className='font-medium text-primary'>{categoryName}</span>
                         </td>
                       </tr>
                     ))}

@@ -31,6 +31,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Names array is required' }, { status: 400 })
     }
 
+    // Limit bulk operations to prevent resource exhaustion
+    const MAX_NAMES_PER_REQUEST = 1000
+    if (names.length > MAX_NAMES_PER_REQUEST) {
+      return NextResponse.json(
+        { error: `Maximum ${MAX_NAMES_PER_REQUEST} names per request` },
+        { status: 400 }
+      )
+    }
+
     // Normalize ENS names per ENSIP-15
     const normalizationResults = names.map((n: string) => ({
       original: n,
@@ -156,6 +165,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     if (!names || !Array.isArray(names) || names.length === 0) {
       return NextResponse.json({ error: 'Names array is required' }, { status: 400 })
+    }
+
+    // Limit bulk operations to prevent resource exhaustion
+    const MAX_NAMES_PER_REQUEST = 1000
+    if (names.length > MAX_NAMES_PER_REQUEST) {
+      return NextResponse.json(
+        { error: `Maximum ${MAX_NAMES_PER_REQUEST} names per request` },
+        { status: 400 }
+      )
     }
 
     // Normalize ENS names per ENSIP-15

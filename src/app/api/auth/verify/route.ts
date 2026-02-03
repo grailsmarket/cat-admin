@@ -47,10 +47,8 @@ export async function POST(request: NextRequest) {
     const adminAddresses = getAdminAddresses()
     const userIsAdmin = isAdmin(address)
 
-    console.log('[verify] Admin addresses configured:', adminAddresses.length)
-    console.log('[verify] Admin addresses:', adminAddresses)
-    console.log('[verify] User address:', address.toLowerCase())
-    console.log('[verify] Is admin:', userIsAdmin)
+    // Redacted logging - don't expose admin addresses in logs
+    console.log('[verify] Admin check:', userIsAdmin ? 'authorized' : 'denied')
 
     if (!userIsAdmin) {
       return NextResponse.json(

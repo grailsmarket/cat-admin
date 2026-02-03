@@ -19,10 +19,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Get query params
+    // Get query params with safe limits
     const url = new URL(request.url)
-    const page = parseInt(url.searchParams.get('page') || '1')
-    const limit = parseInt(url.searchParams.get('limit') || '50')
+    const MAX_LIMIT = 100
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1') || 1)
+    const requestedLimit = parseInt(url.searchParams.get('limit') || '50') || 50
+    const limit = Math.min(Math.max(1, requestedLimit), MAX_LIMIT)
     const offset = (page - 1) * limit
     const tableFilter = url.searchParams.get('table') // 'clubs' or 'club_memberships'
     const operationFilter = url.searchParams.get('operation') // 'INSERT', 'UPDATE', 'DELETE'
@@ -58,11 +60,13 @@ export async function GET(request: NextRequest) {
       paramIndex++
     }
     
-    // Limit to last N days
+    // Limit to last N days (parameterized to avoid SQL injection patterns)
     if (daysLimit) {
       const days = parseInt(daysLimit)
-      if (!isNaN(days) && days > 0) {
-        conditions.push(`created_at >= NOW() - INTERVAL '${days} days'`)
+      if (!isNaN(days) && days > 0 && days <= 3650) { // Max 10 years
+        conditions.push(`created_at >= NOW() - ($${paramIndex}::text || ' days')::interval`)
+        params.push(days.toString())
+        paramIndex++
       }
     }
     
