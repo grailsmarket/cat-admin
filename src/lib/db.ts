@@ -29,13 +29,52 @@ export async function queryOne<T>(sql: string, params?: unknown[]): Promise<T | 
   return rows[0] || null
 }
 
-// Transaction helper
+// Transaction helper (without actor tracking)
 export async function withTransaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
   const pool = getPool()
   const client = await pool.connect()
 
   try {
     await client.query('BEGIN')
+    const result = await callback(client)
+    await client.query('COMMIT')
+    return result
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+/**
+ * Transaction helper with actor address tracking for audit log.
+ * 
+ * Sets the PostgreSQL session variable `app.actor_address` so the audit
+ * trigger can record which admin wallet made the change.
+ * 
+ * Usage:
+ *   await withActorTransaction(walletAddress, async (client) => {
+ *     await client.query('INSERT INTO clubs ...', [name])
+ *   })
+ * 
+ * @param actorAddress - The wallet address of the admin making the change
+ * @param callback - Function containing the database operations
+ */
+export async function withActorTransaction<T>(
+  actorAddress: string,
+  callback: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const pool = getPool()
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+    
+    // Set the actor address for audit logging
+    // SET LOCAL scopes to this transaction only - resets after COMMIT/ROLLBACK
+    await client.query('SET LOCAL app.actor_address = $1', [actorAddress])
+    
     const result = await callback(client)
     await client.query('COMMIT')
     return result
