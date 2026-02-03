@@ -110,3 +110,33 @@ export async function removeNames(
   return response.json()
 }
 
+// Invalid name scan result
+export interface InvalidNameEntry {
+  name: string
+  reason: string
+  added_at: string
+}
+
+export interface InvalidNamesScanResult {
+  success: boolean
+  category: string
+  totalScanned: number
+  invalidCount: number
+  invalidNames: InvalidNameEntry[]
+  error?: string
+}
+
+// Scan a category for invalid ENS names
+export async function scanInvalidNames(categoryName: string): Promise<InvalidNamesScanResult> {
+  const response = await fetch(`/api/cats/${encodeURIComponent(categoryName)}/invalid-names`, {
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to scan for invalid names')
+  }
+
+  return response.json()
+}
+

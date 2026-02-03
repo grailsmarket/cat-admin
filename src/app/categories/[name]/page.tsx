@@ -3,7 +3,7 @@
 import { useState, use } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { fetchCategory, updateCategory, addNames, removeNames } from '@/api/categories'
+import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, type InvalidNameEntry } from '@/api/categories'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import ActivitySection from '@/components/ActivitySection'
 
@@ -29,6 +29,14 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [nameSortDirection, setNameSortDirection] = useState<SortDirection>('asc')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  
+  // Invalid names scan state
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanResults, setScanResults] = useState<{
+    totalScanned: number
+    invalidNames: InvalidNameEntry[]
+  } | null>(null)
+  const [showScanResults, setShowScanResults] = useState(false)
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -81,12 +89,28 @@ export default function CategoryDetailPage({ params }: PageProps) {
   // Remove names mutation
   const removeNamesMutation = useMutation({
     mutationFn: (names: string[]) => removeNames(name, names),
-    onSuccess: (result) => {
+    onSuccess: (result, removedNames) => {
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ['category', name] })
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setSelectedNames(new Set())
         showSuccess(`Removed ${result.removed} name(s)`)
+        
+        // Update scan results to remove the deleted names
+        if (scanResults) {
+          const remainingInvalid = scanResults.invalidNames.filter(
+            n => !removedNames.includes(n.name)
+          )
+          if (remainingInvalid.length === 0) {
+            setShowScanResults(false)
+            setScanResults(null)
+          } else {
+            setScanResults({
+              ...scanResults,
+              invalidNames: remainingInvalid,
+            })
+          }
+        }
       } else {
         setError(result.error || 'Failed to remove names')
       }
@@ -97,6 +121,58 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const showSuccess = (message: string) => {
     setSuccessMessage(message)
     setTimeout(() => setSuccessMessage(''), 3000)
+  }
+
+  const handleScanInvalidNames = async () => {
+    setIsScanning(true)
+    setError('')
+    try {
+      const result = await scanInvalidNames(name)
+      setScanResults({
+        totalScanned: result.totalScanned,
+        invalidNames: result.invalidNames,
+      })
+      setShowScanResults(true)
+      if (result.invalidCount === 0) {
+        showSuccess(`Scanned ${result.totalScanned.toLocaleString()} names - no invalid names found!`)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to scan for invalid names')
+    } finally {
+      setIsScanning(false)
+    }
+  }
+
+  const handleRemoveInvalidNames = (names: string[]) => {
+    setConfirmModal({ isOpen: true, type: 'remove', names })
+  }
+
+  const handleExportInvalidNames = () => {
+    if (!scanResults || scanResults.invalidNames.length === 0) return
+    
+    // Create CSV content
+    const headers = ['name', 'reason', 'added_at']
+    const rows = scanResults.invalidNames.map(entry => [
+      entry.name,
+      entry.reason,
+      new Date(entry.added_at).toISOString(),
+    ])
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+    
+    // Download as file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `invalid-names-${name}-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   const handleStartEdit = () => {
@@ -403,11 +479,102 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     {removeNamesMutation.isPending ? 'Removing...' : `Remove ${selectedNames.size} Selected`}
                   </button>
                 )}
+                <button
+                  onClick={handleScanInvalidNames}
+                  className='btn btn-secondary text-sm'
+                  disabled={isScanning}
+                  title='Scan for invalid ENS names in this category'
+                >
+                  {isScanning ? (
+                    <>
+                      <span className='inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2' />
+                      Scanning...
+                    </>
+                  ) : (
+                    'Scan Invalid'
+                  )}
+                </button>
                 <button onClick={() => setShowAddForm(!showAddForm)} className='btn btn-primary text-sm'>
                   {showAddForm ? 'Cancel' : 'Add Names'}
                 </button>
               </div>
             </div>
+
+            {/* Invalid names scan results */}
+            {showScanResults && scanResults && scanResults.invalidNames.length > 0 && (
+              <div className='bg-warning/10 border-warning mb-6 rounded-lg border p-4'>
+                <div className='flex items-start justify-between mb-4'>
+                  <div className='flex items-start gap-3'>
+                    <svg className='h-5 w-5 text-warning flex-shrink-0 mt-0.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' />
+                    </svg>
+                    <div>
+                      <p className='font-medium text-warning'>
+                        Found {scanResults.invalidNames.length} Invalid Name{scanResults.invalidNames.length !== 1 ? 's' : ''}
+                      </p>
+                      <p className='text-neutral text-sm mt-1'>
+                        Scanned {scanResults.totalScanned.toLocaleString()} names in this category
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowScanResults(false)}
+                    className='text-neutral hover:text-foreground'
+                  >
+                    <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className='border-border max-h-48 overflow-y-auto rounded-lg border bg-background'>
+                  <table className='min-w-full text-sm'>
+                    <thead className='bg-secondary sticky top-0'>
+                      <tr>
+                        <th className='text-left'>Name</th>
+                        <th className='text-left'>Reason</th>
+                        <th className='text-right'>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scanResults.invalidNames.map((entry) => (
+                        <tr key={entry.name} className='border-border border-t'>
+                          <td className='font-mono text-primary'>{entry.name}</td>
+                          <td className='text-neutral'>{entry.reason}</td>
+                          <td className='text-right'>
+                            <button
+                              onClick={() => handleRemoveInvalidNames([entry.name])}
+                              className='text-error hover:underline text-xs'
+                              disabled={removeNamesMutation.isPending}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className='mt-4 flex justify-end gap-2'>
+                  <button
+                    onClick={handleExportInvalidNames}
+                    className='btn btn-secondary text-sm'
+                  >
+                    Export CSV
+                  </button>
+                  {scanResults.invalidNames.length > 1 && (
+                    <button
+                      onClick={() => handleRemoveInvalidNames(scanResults.invalidNames.map(n => n.name))}
+                      className='btn btn-danger text-sm'
+                      disabled={removeNamesMutation.isPending}
+                    >
+                      {removeNamesMutation.isPending ? 'Removing...' : `Remove All ${scanResults.invalidNames.length} Invalid Names`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Add names form */}
             {showAddForm && (

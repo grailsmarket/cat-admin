@@ -43,6 +43,9 @@ export default function NewCategoryPage() {
   }, [categoriesData])
   
   const isSlugDuplicate = slug.length > 0 && existingCategorySlugs.has(slug.toLowerCase())
+  
+  // Test mode: slug "test" bypasses grails lookups but prevents submission
+  const isTestMode = slug.toLowerCase() === 'test'
 
   // Debounced slug check
   const checkSlug = useCallback(async (slugToCheck: string) => {
@@ -54,6 +57,15 @@ export default function NewCategoryPage() {
     const slugRegex = /^[a-z0-9_]+$/
     if (!slugRegex.test(slugToCheck)) {
       setSlugCheck(null)
+      return
+    }
+    
+    // Test mode: simulate valid slug without API call
+    if (slugToCheck.toLowerCase() === 'test') {
+      setSlugCheck({
+        isLive: true,
+        checks: { avatar: true, header: true },
+      })
       return
     }
     
@@ -83,7 +95,9 @@ export default function NewCategoryPage() {
   }, [slug, checkSlug])
 
   // Derived state: is slug valid in grails and not a duplicate?
+  // In test mode, we allow form interaction but block submission
   const isSlugValid = slugCheck?.isLive === true && !isSlugDuplicate
+  const canInteractWithForm = isSlugValid || isTestMode
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -145,6 +159,12 @@ export default function NewCategoryPage() {
     const slugRegex = /^[a-z0-9_]+$/
     if (!slugRegex.test(slug)) {
       setError('Slug must be lowercase alphanumeric with underscores only (e.g., my_category)')
+      return
+    }
+    
+    // Block test mode from submitting
+    if (isTestMode) {
+      setError('Test mode: Cannot create a category with slug "test". Use a different slug to create a real category.')
       return
     }
 
@@ -244,11 +264,13 @@ export default function NewCategoryPage() {
             {/* Live status check */}
             {slug.length >= 2 && !isCheckingSlug && slugCheck && (
               <div className='mt-3 rounded-lg border p-3' style={{ 
-                borderColor: isSlugValid ? 'var(--success)' : 'var(--error)',
-                backgroundColor: isSlugValid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)'
+                borderColor: isTestMode ? 'var(--warning)' : isSlugValid ? 'var(--success)' : 'var(--error)',
+                backgroundColor: isTestMode ? 'rgba(234, 179, 8, 0.1)' : isSlugValid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)'
               }}>
                 <div className='flex items-center gap-2 mb-2'>
-                  {isSlugDuplicate ? (
+                  {isTestMode ? (
+                    <span className='text-warning font-medium'>🧪 Test Mode - UI only, cannot submit</span>
+                  ) : isSlugDuplicate ? (
                     <span className='text-error font-medium'>✗ Category already exists</span>
                   ) : slugCheck.isLive ? (
                     <span className='text-success font-medium'>✓ Ready to create</span>
@@ -256,7 +278,7 @@ export default function NewCategoryPage() {
                     <span className='text-error font-medium'>✗ Not set up in Grails</span>
                   )}
                 </div>
-                {!isSlugDuplicate && (
+                {!isSlugDuplicate && !isTestMode && (
                   <>
                     <div className='flex gap-4 text-sm'>
                       <span className={slugCheck.checks.avatar ? 'text-success' : 'text-error'}>
@@ -272,6 +294,11 @@ export default function NewCategoryPage() {
                       </p>
                     )}
                   </>
+                )}
+                {isTestMode && (
+                  <p className='text-neutral text-xs mt-1'>
+                    Use this to test the form UI. Grails lookups are bypassed. Change slug to create a real category.
+                  </p>
                 )}
               </div>
             )}
@@ -289,7 +316,7 @@ export default function NewCategoryPage() {
               placeholder='Brief description of this category...'
               rows={3}
               className='w-full resize-none'
-              disabled={createMutation.isPending || !isSlugValid}
+              disabled={createMutation.isPending || !canInteractWithForm}
             />
           </div>
         </div>
@@ -328,7 +355,7 @@ export default function NewCategoryPage() {
                   e.target.value = '' // Reset to allow re-upload
                 }}
                 className='text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-primary/80 file:cursor-pointer'
-                disabled={createMutation.isPending || !isSlugValid}
+                disabled={createMutation.isPending || !canInteractWithForm}
               />
               <span className='text-neutral text-xs'>CSV or TXT with one name per line or comma-separated</span>
             </div>
@@ -361,7 +388,7 @@ export default function NewCategoryPage() {
               placeholder={'vitalik.eth\nnick.eth\nbrantly.eth'}
               rows={8}
               className={`w-full font-mono text-sm ${hasInvalidNames ? 'border-error' : ''}`}
-              disabled={createMutation.isPending || !isSlugValid}
+              disabled={createMutation.isPending || !canInteractWithForm}
             />
             <p className='text-neutral mt-1 text-sm'>
               Enter one ENS name per line. The .eth suffix is optional.
@@ -430,14 +457,17 @@ export default function NewCategoryPage() {
 
         {/* Actions */}
         <div className='flex flex-col gap-3'>
-          {!isSlugValid && (
+          {isTestMode && (
+            <p className='text-warning text-sm'>🧪 Test mode active - form submission is disabled</p>
+          )}
+          {!isSlugValid && !isTestMode && (
             <p className='text-error text-sm'>Enter a valid slug to create a new category</p>
           )}
           <div className='flex items-center gap-4'>
             <button 
               type='submit' 
               className='btn btn-primary' 
-              disabled={createMutation.isPending || !isSlugValid || hasInvalidNames}
+              disabled={createMutation.isPending || !isSlugValid || hasInvalidNames || isTestMode}
             >
               {createMutation.isPending ? (
                 <>
