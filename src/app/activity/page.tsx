@@ -13,30 +13,26 @@ export default function ActivityPage() {
   const [showSystemUpdates, setShowSystemUpdates] = useState(false)
   const [ensNames, setEnsNames] = useState<Map<string, string | null>>(new Map())
 
+  // Include hideSystem in the query - filter server-side for correct pagination
   const { data, isLoading, error, isFetching } = useQuery({
-    queryKey: ['activity', page, filters],
-    queryFn: () => fetchActivity(page, 50, filters),
+    queryKey: ['activity', page, filters, showSystemUpdates],
+    queryFn: () => fetchActivity(page, 50, { ...filters, hideSystem: !showSystemUpdates }),
     placeholderData: keepPreviousData,
   })
 
-  const allEntries = data?.data?.entries || []
+  const entries = data?.data?.entries || []
   const pagination = data?.data?.pagination
-
-  // Filter out system/worker updates (no actor_address) unless toggle is on
-  const entries = showSystemUpdates 
-    ? allEntries 
-    : allEntries.filter(entry => entry.actor_address !== null)
 
   // Resolve actor addresses to ENS names
   useEffect(() => {
-    const addresses = allEntries
+    const addresses = entries
       .map(e => e.actor_address)
       .filter((a): a is string => a !== null)
     
     if (addresses.length > 0) {
       resolveAddresses(addresses).then(setEnsNames)
     }
-  }, [allEntries])
+  }, [entries])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {

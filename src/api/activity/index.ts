@@ -18,6 +18,7 @@ export type ActivityFilters = {
   table?: 'clubs' | 'club_memberships'
   operation?: 'INSERT' | 'UPDATE' | 'DELETE'
   actor?: string
+  hideSystem?: boolean
 }
 
 export async function fetchActivity(
@@ -33,6 +34,7 @@ export async function fetchActivity(
   if (filters.table) params.set('table', filters.table)
   if (filters.operation) params.set('operation', filters.operation)
   if (filters.actor) params.set('actor', filters.actor)
+  if (filters.hideSystem) params.set('hideSystem', 'true')
 
   const response = await fetch(`/api/activity?${params.toString()}`)
   

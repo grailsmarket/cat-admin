@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const tableFilter = url.searchParams.get('table') // 'clubs' or 'club_memberships'
     const operationFilter = url.searchParams.get('operation') // 'INSERT', 'UPDATE', 'DELETE'
     const actorFilter = url.searchParams.get('actor') // wallet address
+    const hideSystem = url.searchParams.get('hideSystem') === 'true' // hide entries with no actor
 
     // Build query with optional filters
     let whereClause = ''
@@ -34,6 +35,12 @@ export async function GET(request: NextRequest) {
     let paramIndex = 1
 
     const conditions: string[] = []
+    
+    // Filter out system/worker updates (no actor_address) if requested
+    if (hideSystem) {
+      conditions.push('actor_address IS NOT NULL')
+    }
+    
     if (tableFilter) {
       conditions.push(`table_name = $${paramIndex++}`)
       params.push(tableFilter)
