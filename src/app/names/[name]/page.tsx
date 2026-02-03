@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { fetchEnsName, removeCategoriesFromName } from '@/api/names'
 import { fetchCategories, addNames, type AddNamesResponse } from '@/api/categories'
-import ConfirmModal from '@/components/ConfirmModal'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import SearchableSelect from '@/components/SearchableSelect'
 import ActivitySection from '@/components/ActivitySection'
 

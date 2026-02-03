@@ -4,7 +4,7 @@ import { useState, use } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchCategory, updateCategory, addNames, removeNames } from '@/api/categories'
-import ConfirmModal from '@/components/ConfirmModal'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import ActivitySection from '@/components/ActivitySection'
 
 type PageProps = {

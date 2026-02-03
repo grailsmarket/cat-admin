@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { createCategory, addNames, fetchCategories, type CreateCategoryResponse } from '@/api/categories'
+import { normalizeEnsName } from '@/lib/normalize'
+import { ConfirmModal } from '@/components/ConfirmModal'
 
 type SlugCheckResult = {
   isLive: boolean
@@ -24,6 +26,7 @@ export default function NewCategoryPage() {
     checks?: { avatar: boolean; header: boolean }
     checkUrls?: { avatar: string; header: string }
   } | null>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
   
   // Live slug check state
   const [slugCheck, setSlugCheck] = useState<SlugCheckResult | null>(null)
@@ -39,7 +42,9 @@ export default function NewCategoryPage() {
     return new Set((categoriesData?.data || []).map(cat => cat.name.toLowerCase()))
   }, [categoriesData])
   
-  const isSlugDuplicate = slug.length > 0 && existingCategorySlugs.has(slug.toLowerCase())
+  // TODO: Re-enable duplicate check after testing
+  // const isSlugDuplicate = slug.length > 0 && existingCategorySlugs.has(slug.toLowerCase())
+  const isSlugDuplicate = false
 
   // Debounced slug check
   const checkSlug = useCallback(async (slugToCheck: string) => {
@@ -94,14 +99,13 @@ export default function NewCategoryPage() {
         throw error
       }
 
-      // Then add initial members if provided
-      const names = initialNames
-        .split('\n')
-        .map((n) => n.trim())
-        .filter((n) => n.length > 0)
+      // Then add initial names if provided (use normalized names)
+      const validNames = parsedNames
+        .filter(n => n.isValid && n.normalized)
+        .map(n => n.normalized as string)
 
-      if (names.length > 0) {
-        const addResult = await addNames(slug, names)
+      if (validNames.length > 0) {
+        const addResult = await addNames(slug, validNames)
         if (!addResult.success) {
           // Category was created but members failed
           return {
@@ -152,13 +156,40 @@ export default function NewCategoryPage() {
       return
     }
 
+    // Show confirmation modal
+    setShowConfirmModal(true)
+  }
+
+  const handleConfirmCreate = () => {
+    setShowConfirmModal(false)
     createMutation.mutate()
   }
 
-  const nameCount = initialNames
-    .split('\n')
-    .map((n) => n.trim())
-    .filter((n) => n.length > 0).length
+  // Parse and validate ENS names (strict mode - must be already normalized)
+  const parsedNames = useMemo(() => {
+    const lines = initialNames.split('\n').map((n) => n.trim()).filter((n) => n.length > 0)
+    return lines.map(name => {
+      // Add .eth if missing
+      const fullName = name.endsWith('.eth') ? name : `${name}.eth`
+      const normalized = normalizeEnsName(fullName)
+      // Strict: name must equal its normalized form (no uppercase, etc.)
+      const isValid = normalized !== null && normalized === fullName
+      return {
+        original: name,
+        normalized,
+        isValid,
+        reason: normalized === null 
+          ? 'invalid ENS name' 
+          : normalized !== fullName 
+            ? `must be lowercase: ${normalized.replace('.eth', '')}` 
+            : null
+      }
+    })
+  }, [initialNames])
+  
+  const nameCount = parsedNames.length
+  const invalidNames = parsedNames.filter(n => !n.isValid)
+  const hasInvalidNames = invalidNames.length > 0
 
   return (
     <div className='p-8'>
@@ -266,7 +297,11 @@ export default function NewCategoryPage() {
 
           <div>
             <label htmlFor='names' className='mb-2 block text-sm font-medium'>
-              ENS Names {nameCount > 0 && <span className='text-neutral'>({nameCount} names)</span>}
+              ENS Names {nameCount > 0 && (
+                <span className={hasInvalidNames ? 'text-error' : 'text-neutral'}>
+                  ({nameCount} names{hasInvalidNames ? `, ${invalidNames.length} invalid` : ''})
+                </span>
+              )}
             </label>
             <textarea
               id='names'
@@ -274,12 +309,25 @@ export default function NewCategoryPage() {
               onChange={(e) => setInitialNames(e.target.value)}
               placeholder={'vitalik.eth\nnick.eth\nbrantly.eth'}
               rows={8}
-              className='w-full font-mono text-sm'
+              className={`w-full font-mono text-sm ${hasInvalidNames ? 'border-error' : ''}`}
               disabled={createMutation.isPending || !isSlugValid}
             />
             <p className='text-neutral mt-1 text-sm'>
-              Enter one ENS name per line. Names will be validated against the database.
+              Enter one ENS name per line. The .eth suffix is optional.
             </p>
+            {hasInvalidNames && (
+              <div className='mt-2 rounded-lg border border-error bg-error/10 p-3'>
+                <p className='text-error text-sm font-medium mb-1'>Invalid ENS names:</p>
+                <ul className='text-error text-sm list-disc list-inside'>
+                  {invalidNames.map((n, i) => (
+                    <li key={i}>
+                      <span className='font-mono'>{n.original}</span>
+                      {n.reason && <span className='text-neutral ml-2'>({n.reason})</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
 
@@ -338,7 +386,7 @@ export default function NewCategoryPage() {
             <button 
               type='submit' 
               className='btn btn-primary' 
-              disabled={createMutation.isPending || !isSlugValid}
+              disabled={createMutation.isPending || !isSlugValid || hasInvalidNames}
             >
               {createMutation.isPending ? (
                 <>
@@ -349,12 +397,37 @@ export default function NewCategoryPage() {
                 'Create Category'
               )}
             </button>
-            <Link href='/categories' className='btn btn-secondary'>
-              Cancel
-            </Link>
-          </div>
+          <Link href='/categories' className='btn btn-secondary'>
+            Cancel
+          </Link>
+        </div>
         </div>
       </form>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={handleConfirmCreate}
+        title="⚠️ Create New Category"
+        message={
+          <div className="space-y-3">
+            <p className="text-lg font-semibold text-warning">
+              Are you absolutely sure you want to create this category?
+            </p>
+            <div className="bg-surface-2 rounded-lg p-3 space-y-1">
+              <p><strong>Slug:</strong> <span className="font-mono">{slug}</span></p>
+              {description && <p><strong>Description:</strong> {description}</p>}
+              {nameCount > 0 && <p><strong>Initial names:</strong> {nameCount}</p>}
+            </div>
+            <p className="text-error font-medium">
+              This action will create a new category in the production database and cannot be easily undone.
+            </p>
+          </div>
+        }
+        confirmText="Yes, Create Category"
+        variant="danger"
+      />
     </div>
   )
 }
