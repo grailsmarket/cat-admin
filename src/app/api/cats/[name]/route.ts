@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { query } from '@/lib/db'
+import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
 import type { Category } from '@/types'
 
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PUT /api/cats/[name] - Update category (direct DB - no backend endpoint)
+// PUT /api/cats/[name] - Update category (with audit logging)
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { name } = await params
@@ -102,8 +102,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isAdmin } = await verifyAdmin(token)
-    if (!isAdmin) {
+    const { isAdmin, address } = await verifyAdmin(token)
+    if (!isAdmin || !address) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -119,15 +119,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    // Update category
-    const [updated] = await query<Category>(`
-      UPDATE clubs
-      SET description = $2, updated_at = NOW()
-      WHERE name = $1
-      RETURNING name, description, member_count, created_at, updated_at
-    `, [name, description || null])
+    // Update category with actor tracking for audit log
+    const updated = await withActorTransaction(address, async (client) => {
+      const result = await client.query(`
+        UPDATE clubs
+        SET description = $2, updated_at = NOW()
+        WHERE name = $1
+        RETURNING name, description, member_count AS name_count, created_at, updated_at
+      `, [name, description || null])
+      return result.rows[0] as Category
+    })
 
-    console.log(`[cats] Updated category: ${name}`)
+    console.log(`[cats] Updated category: ${name} by ${address}`)
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {

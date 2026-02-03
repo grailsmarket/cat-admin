@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { query, withTransaction } from '@/lib/db'
+import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
 import { normalizeEnsName } from '@/lib/normalize'
 
@@ -8,7 +8,7 @@ type RouteParams = {
   params: Promise<{ name: string }>
 }
 
-// POST /api/cats/[name]/members - Add members (bulk)
+// POST /api/cats/[name]/members - Add names (bulk, with audit logging)
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { name } = await params
@@ -19,8 +19,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isAdmin } = await verifyAdmin(token)
-    if (!isAdmin) {
+    const { isAdmin, address } = await verifyAdmin(token)
+    if (!isAdmin || !address) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -88,8 +88,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Use the actual names from DB (correct casing)
     const dbNames = validNames.map(v => v.name)
 
-    // Add members in a transaction using idempotent pattern
-    const result = await withTransaction(async (client) => {
+    // Add names in a transaction with actor tracking for audit log
+    const result = await withActorTransaction(address, async (client) => {
       let added = 0
       let skipped = 0
 
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return { added, skipped }
     })
 
-    console.log(`[cats] Added ${result.added} members to category: ${name} (skipped ${result.skipped} existing)`)
+    console.log(`[cats] Added ${result.added} names to category: ${name} by ${address} (skipped ${result.skipped} existing)`)
 
     return NextResponse.json({
       success: true,
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/cats/[name]/members - Remove members
+// DELETE /api/cats/[name]/members - Remove names (with audit logging)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { name } = await params
@@ -146,8 +146,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isAdmin } = await verifyAdmin(token)
-    if (!isAdmin) {
+    const { isAdmin, address } = await verifyAdmin(token)
+    if (!isAdmin || !address) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -176,8 +176,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    // Remove members in a transaction (case-insensitive matching)
-    const result = await withTransaction(async (client) => {
+    // Remove names in a transaction with actor tracking for audit log
+    const result = await withActorTransaction(address, async (client) => {
       let removed = 0
 
       for (const ensName of normalizedNames) {
@@ -198,7 +198,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return { removed }
     })
 
-    console.log(`[cats] Removed ${result.removed} members from category: ${name}`)
+    console.log(`[cats] Removed ${result.removed} names from category: ${name} by ${address}`)
 
     return NextResponse.json({
       success: true,

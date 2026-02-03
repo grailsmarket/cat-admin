@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { query, withTransaction } from '@/lib/db'
+import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
 import { normalizeEnsName } from '@/lib/normalize'
 
@@ -8,7 +8,7 @@ type RouteParams = {
   params: Promise<{ name: string }>
 }
 
-// DELETE /api/names/[name]/categories - Remove categories from an ENS name
+// DELETE /api/names/[name]/categories - Remove categories from an ENS name (with audit logging)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { name: rawName } = await params
@@ -19,8 +19,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isAdmin } = await verifyAdmin(token)
-    if (!isAdmin) {
+    const { isAdmin, address } = await verifyAdmin(token)
+    if (!isAdmin || !address) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -49,8 +49,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Use the actual name from DB (correct casing)
     const dbName = ensName.name
 
-    // Remove memberships in a transaction
-    const result = await withTransaction(async (client) => {
+    // Remove memberships in a transaction with actor tracking for audit log
+    const result = await withActorTransaction(address, async (client) => {
       let removed = 0
 
       for (const categoryName of categories) {
@@ -72,7 +72,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return { removed }
     })
 
-    console.log(`[names] Removed ${result.removed} categories from: ${dbName}`)
+    console.log(`[names] Removed ${result.removed} categories from: ${dbName} by ${address}`)
 
     return NextResponse.json({
       success: true,

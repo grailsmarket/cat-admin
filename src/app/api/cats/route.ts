@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { query } from '@/lib/db'
+import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
 import type { Category } from '@/types'
 
@@ -45,7 +45,7 @@ export async function GET() {
   }
 }
 
-// POST /api/cats - Create category (direct DB - no backend endpoint)
+// POST /api/cats - Create category (with audit logging)
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies()
@@ -55,8 +55,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { isAdmin } = await verifyAdmin(token)
-    if (!isAdmin) {
+    const { isAdmin, address } = await verifyAdmin(token)
+    if (!isAdmin || !address) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -84,13 +84,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Category already exists' }, { status: 409 })
     }
 
-    const [created] = await query<Category>(`
-      INSERT INTO clubs (name, description, member_count, created_at, updated_at)
-      VALUES ($1, $2, 0, NOW(), NOW())
-      RETURNING name, description, member_count AS name_count, created_at, updated_at
-    `, [name, description || null])
+    // Create category with actor tracking for audit log
+    const created = await withActorTransaction(address, async (client) => {
+      const result = await client.query(`
+        INSERT INTO clubs (name, description, member_count, created_at, updated_at)
+        VALUES ($1, $2, 0, NOW(), NOW())
+        RETURNING name, description, member_count AS name_count, created_at, updated_at
+      `, [name, description || null])
+      return result.rows[0] as Category
+    })
 
-    console.log(`[cats] Created category: ${name}`)
+    console.log(`[cats] Created category: ${name} by ${address}`)
 
     return NextResponse.json({ success: true, data: created }, { status: 201 })
   } catch (error) {
