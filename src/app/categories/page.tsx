@@ -84,17 +84,8 @@ export default function CategoriesPage() {
   return (
     <div className='p-8'>
       {/* Header */}
-      <div className='mb-8 flex items-center justify-between'>
-        <div>
-          <h1 className='text-3xl font-bold'>Name Categories</h1>
-          <p className='text-neutral mt-1'>Manage and track ENS domain name categories.</p>
-        </div>
-        <Link href='/categories/new' className='btn btn-primary'>
-          <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
-          </svg>
-          New Category
-        </Link>
+      <div className='mb-8'>
+        <h1 className='text-3xl font-bold'>Name Categories</h1>
       </div>
 
       {/* Search and filters */}
@@ -132,6 +123,13 @@ export default function CategoriesPage() {
           </svg>
           Refresh
         </button>
+        <div className='flex-1' />
+        <Link href='/categories/new' className='btn btn-primary'>
+          <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
+          </svg>
+          New Category
+        </Link>
       </div>
 
       {/* Error state */}
@@ -182,7 +180,7 @@ export default function CategoriesPage() {
                   className='cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('name')}
                 >
-                  Name <SortIcon field='name' />
+                  Slugs <SortIcon field='name' />
                 </th>
                 <th>Description</th>
                 <th

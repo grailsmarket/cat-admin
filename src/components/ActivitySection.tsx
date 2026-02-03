@@ -10,7 +10,8 @@ import type { AuditLogEntry } from '@/types'
 interface ActivitySectionProps {
   category?: string // Filter by category name
   name?: string // Filter by ENS name
-  limit?: number // Max entries to show (default 10)
+  limit?: number // Max entries to fetch from API (default 50)
+  displayLimit?: number // Max grouped entries to display (default: all)
 }
 
 type GroupedEntry = {
@@ -18,7 +19,7 @@ type GroupedEntry = {
   subEvents: AuditLogEntry[]
 }
 
-export default function ActivitySection({ category, name, limit = 10 }: ActivitySectionProps) {
+export default function ActivitySection({ category, name, limit = 50, displayLimit }: ActivitySectionProps) {
   const [ensNames, setEnsNames] = useState<Map<string, string | null>>(new Map())
   const [expandedEntries, setExpandedEntries] = useState<Set<number>>(new Set())
 
@@ -76,7 +77,8 @@ export default function ActivitySection({ category, name, limit = 10 }: Activity
 
       processedIds.add(entry.id)
     }
-    return grouped
+    // Apply displayLimit if specified
+    return displayLimit ? grouped.slice(0, displayLimit) : grouped
   })()
 
   // Resolve actor addresses to ENS names
@@ -183,7 +185,7 @@ export default function ActivitySection({ category, name, limit = 10 }: Activity
       const [clubName, ensName] = entry.record_key.split(':')
       switch (entry.operation) {
         case 'INSERT':
-          // If we're on a category page, show the name; if on a name page, show the category
+          // Context-aware display: on category page show name, on name page show category, on dashboard show both
           if (category) {
             return (
               <>
@@ -193,10 +195,24 @@ export default function ActivitySection({ category, name, limit = 10 }: Activity
                 </Link>
               </>
             )
-          } else {
+          } else if (name) {
             return (
               <>
                 Added to{' '}
+                <Link href={`/categories/${clubName}`} className='text-primary hover:underline'>
+                  {clubName}
+                </Link>
+              </>
+            )
+          } else {
+            // Dashboard: show both name and category
+            return (
+              <>
+                Added{' '}
+                <Link href={`/names/${ensName}`} className='text-primary hover:underline'>
+                  {ensName}
+                </Link>
+                <span className='text-neutral'> to </span>
                 <Link href={`/categories/${clubName}`} className='text-primary hover:underline'>
                   {clubName}
                 </Link>
@@ -213,10 +229,24 @@ export default function ActivitySection({ category, name, limit = 10 }: Activity
                 </Link>
               </>
             )
-          } else {
+          } else if (name) {
             return (
               <>
                 Removed from{' '}
+                <Link href={`/categories/${clubName}`} className='text-primary hover:underline'>
+                  {clubName}
+                </Link>
+              </>
+            )
+          } else {
+            // Dashboard: show both name and category
+            return (
+              <>
+                Removed{' '}
+                <Link href={`/names/${ensName}`} className='text-primary hover:underline'>
+                  {ensName}
+                </Link>
+                <span className='text-neutral'> from </span>
                 <Link href={`/categories/${clubName}`} className='text-primary hover:underline'>
                   {clubName}
                 </Link>

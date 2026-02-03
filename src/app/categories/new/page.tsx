@@ -42,9 +42,7 @@ export default function NewCategoryPage() {
     return new Set((categoriesData?.data || []).map(cat => cat.name.toLowerCase()))
   }, [categoriesData])
   
-  // TODO: Re-enable duplicate check after testing
-  // const isSlugDuplicate = slug.length > 0 && existingCategorySlugs.has(slug.toLowerCase())
-  const isSlugDuplicate = false
+  const isSlugDuplicate = slug.length > 0 && existingCategorySlugs.has(slug.toLowerCase())
 
   // Debounced slug check
   const checkSlug = useCallback(async (slugToCheck: string) => {
