@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { fetchEnsName, removeCategoriesFromName } from '@/api/names'
 import { fetchCategories, addNames, type AddNamesResponse } from '@/api/categories'
 import ConfirmModal from '@/components/ConfirmModal'
+import SearchableSelect from '@/components/SearchableSelect'
 
 interface PageProps {
   params: Promise<{ name: string }>
@@ -385,21 +386,20 @@ export default function NameDetailPage({ params }: PageProps) {
               <div className='bg-secondary mb-6 rounded-lg p-4'>
                 <label className='mb-2 block text-sm font-medium'>Select Category</label>
                 <div className='flex gap-3'>
-                  <select
-                    value={selectedCategoryToAdd}
-                    onChange={(e) => setSelectedCategoryToAdd(e.target.value)}
-                    className='flex-1'
-                    disabled={addMutation.isPending}
-                  >
-                    <option value=''>Choose a category...</option>
-                    {allCategories
+                  <SearchableSelect
+                    options={allCategories
                       .filter((cat) => !clubs.includes(cat.name))
-                      .map((cat) => (
-                        <option key={cat.name} value={cat.name}>
-                          {cat.name} ({cat.name_count ?? 0} names)
-                        </option>
-                      ))}
-                  </select>
+                      .map((cat) => ({
+                        value: cat.name,
+                        label: cat.name,
+                        sublabel: `${(cat.name_count ?? 0).toLocaleString()} names`,
+                      }))}
+                    value={selectedCategoryToAdd}
+                    onChange={setSelectedCategoryToAdd}
+                    placeholder='Choose a category...'
+                    disabled={addMutation.isPending}
+                    className='flex-1'
+                  />
                   <button
                     onClick={handleAddToCategory}
                     disabled={!selectedCategoryToAdd || addMutation.isPending}

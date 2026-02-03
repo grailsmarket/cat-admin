@@ -389,7 +389,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
             {filteredNames && filteredNames.length > 0 && (
               <>
-                <div className='border-border max-h-96 overflow-y-auto rounded-lg border'>
+                <div className='border-border max-h-[70vh] overflow-y-auto rounded-lg border'>
                   <table className='min-w-full'>
                     <thead className='bg-secondary sticky top-0'>
                       <tr>
