@@ -24,3 +24,15 @@ export type ApiResponse<T> = {
   error?: string
 }
 
+export type AuditLogEntry = {
+  id: number
+  table_name: 'clubs' | 'club_memberships'
+  operation: 'INSERT' | 'UPDATE' | 'DELETE'
+  record_key: string
+  old_data: Record<string, unknown> | null
+  new_data: Record<string, unknown> | null
+  actor_address: string | null
+  db_user: string
+  created_at: string
+}
+
