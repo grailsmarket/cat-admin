@@ -4,12 +4,12 @@ import { rateLimit } from '@/lib/rate-limit'
 
 // Rate limit configuration
 const RATE_LIMITS = {
-  // Auth endpoints: strict limit (10 per minute)
-  auth: { limit: 10, windowMs: 60 * 1000 },
-  // Write operations: moderate limit (30 per minute)
-  write: { limit: 30, windowMs: 60 * 1000 },
-  // General API: standard limit (60 per minute)
-  api: { limit: 60, windowMs: 60 * 1000 },
+  // Auth endpoints: 50 per minute
+  auth: { limit: 50, windowMs: 60 * 1000 },
+  // Write operations: 150 per minute
+  write: { limit: 150, windowMs: 60 * 1000 },
+  // General API: 300 per minute
+  api: { limit: 300, windowMs: 60 * 1000 },
 }
 
 function getClientIp(request: NextRequest): string {

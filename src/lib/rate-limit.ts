@@ -76,14 +76,14 @@ export function rateLimit(
  * Pre-configured rate limiters for different endpoint types.
  */
 export const rateLimiters = {
-  // Auth endpoints: 10 requests per minute (strict)
-  auth: (ip: string) => rateLimit(ip, 10, 60 * 1000),
+  // Auth endpoints: 50 requests per minute
+  auth: (ip: string) => rateLimit(ip, 50, 60 * 1000),
   
-  // General API: 60 requests per minute
-  api: (ip: string) => rateLimit(ip, 60, 60 * 1000),
+  // General API: 300 requests per minute
+  api: (ip: string) => rateLimit(ip, 300, 60 * 1000),
   
-  // Write operations: 30 requests per minute
-  write: (ip: string) => rateLimit(ip, 30, 60 * 1000),
+  // Write operations: 150 requests per minute
+  write: (ip: string) => rateLimit(ip, 150, 60 * 1000),
 }
 
 /**
