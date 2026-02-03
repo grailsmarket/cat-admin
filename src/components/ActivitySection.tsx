@@ -13,12 +13,18 @@ interface ActivitySectionProps {
   limit?: number // Max entries to show (default 10)
 }
 
+type GroupedEntry = {
+  main: AuditLogEntry
+  subEvents: AuditLogEntry[]
+}
+
 export default function ActivitySection({ category, name, limit = 10 }: ActivitySectionProps) {
   const [ensNames, setEnsNames] = useState<Map<string, string | null>>(new Map())
+  const [expandedEntries, setExpandedEntries] = useState<Set<number>>(new Set())
 
   const filters: ActivityFilters = {
     hideSystem: true, // Always exclude worker updates
-    days: 30, // Last 30 days only
+    days: 365, // Last year
     ...(category && { category }),
     ...(name && { name }),
   }
@@ -28,34 +34,87 @@ export default function ActivitySection({ category, name, limit = 10 }: Activity
     queryFn: () => fetchActivity(1, limit, filters),
   })
 
-  const entries = data?.data?.entries || []
+  const rawEntries = data?.data?.entries || []
+
+  // Group entries by timestamp + actor to identify triggered sub-events
+  const entries: GroupedEntry[] = (() => {
+    const grouped: GroupedEntry[] = []
+    const processedIds = new Set<number>()
+
+    for (const entry of rawEntries) {
+      if (processedIds.has(entry.id)) continue
+
+      const entryTime = new Date(entry.created_at).getTime()
+      const related = rawEntries.filter((e) => {
+        if (e.id === entry.id || processedIds.has(e.id)) return false
+        const eTime = new Date(e.created_at).getTime()
+        return Math.abs(eTime - entryTime) < 1000 && e.actor_address === entry.actor_address
+      })
+
+      if (entry.table_name === 'club_memberships') {
+        const [clubName] = entry.record_key.split(':')
+        const subEvents = related.filter(
+          (e) => e.table_name === 'clubs' && e.operation === 'UPDATE' && e.record_key === clubName
+        )
+        const matchedSubEvent = subEvents.length > 0 ? [subEvents[0]] : []
+        matchedSubEvent.forEach((e) => processedIds.add(e.id))
+        grouped.push({ main: entry, subEvents: matchedSubEvent })
+      } else if (entry.table_name === 'clubs' && entry.operation === 'UPDATE') {
+        const meaningfulChanges = entry.new_data
+          ? Object.keys(entry.new_data).filter((key) => {
+              if (['created_at', 'updated_at', 'added_at', 'member_count', 'last_sales_update'].includes(key))
+                return false
+              return JSON.stringify(entry.old_data?.[key]) !== JSON.stringify(entry.new_data?.[key])
+            })
+          : []
+        if (meaningfulChanges.length > 0) {
+          grouped.push({ main: entry, subEvents: [] })
+        }
+      } else {
+        grouped.push({ main: entry, subEvents: [] })
+      }
+
+      processedIds.add(entry.id)
+    }
+    return grouped
+  })()
 
   // Resolve actor addresses to ENS names
   useEffect(() => {
-    const addresses = entries
+    const addresses = rawEntries
       .map((e) => e.actor_address)
       .filter((a): a is string => a !== null)
 
     if (addresses.length > 0) {
       resolveAddresses(addresses).then(setEnsNames)
     }
-  }, [entries])
+  }, [rawEntries])
 
-  const formatDate = (dateString: string) => {
+  const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHour = Math.floor(diffMin / 60)
+    const diffDay = Math.floor(diffHour / 24)
+    const diffMonth = Math.floor(diffDay / 30)
 
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
+    if (diffSec < 60) return 'just now'
+    if (diffMin < 60) return `${diffMin}m ago`
+    if (diffHour < 24) return `${diffHour}h ago`
+    if (diffDay < 7) return `${diffDay}d ago`
+    if (diffDay < 30) return `${Math.floor(diffDay / 7)}w ago`
+    return `${diffMonth}mo ago`
+  }
 
-    return date.toLocaleDateString('en-US', {
+  const formatFullDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('en-US', {
+      weekday: 'short',
       month: 'short',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     })
   }
 
@@ -64,10 +123,40 @@ export default function ActivitySection({ category, name, limit = 10 }: Activity
 
     const ensName = ensNames.get(address.toLowerCase())
     if (ensName) {
-      return <span title={address}>{ensName}</span>
+      return (
+        <span className='group relative'>
+          {ensName}
+          <span className='bg-secondary border-border absolute bottom-full left-0 mb-1 hidden whitespace-nowrap rounded border px-2 py-1 text-xs group-hover:block z-10'>
+            {address}
+          </span>
+        </span>
+      )
     }
 
     return `${address.slice(0, 6)}...${address.slice(-4)}`
+  }
+
+  const hiddenFields = ['created_at', 'updated_at', 'added_at', 'member_count', 'club_name', 'ens_name', 'name', 'last_sales_update']
+
+  const getChangedFields = (entry: AuditLogEntry): { field: string; from: string; to: string }[] => {
+    if (entry.table_name === 'club_memberships') return []
+    if (!entry.old_data || !entry.new_data) return []
+
+    const changes: { field: string; from: string; to: string }[] = []
+    for (const key of Object.keys(entry.new_data)) {
+      if (hiddenFields.includes(key)) continue
+      const oldVal = entry.old_data[key]
+      const newVal = entry.new_data[key]
+      if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+        const formatVal = (v: unknown) => {
+          if (v === null || v === undefined) return '(empty)'
+          if (typeof v === 'string' && v.length > 50) return v.slice(0, 50) + '...'
+          return String(v)
+        }
+        changes.push({ field: key, from: formatVal(oldVal), to: formatVal(newVal) })
+      }
+    }
+    return changes
   }
 
   const getActionText = (entry: AuditLogEntry) => {
@@ -75,8 +164,17 @@ export default function ActivitySection({ category, name, limit = 10 }: Activity
       switch (entry.operation) {
         case 'INSERT':
           return 'Created category'
-        case 'UPDATE':
+        case 'UPDATE': {
+          const changes = getChangedFields(entry)
+          if (changes.length > 0) {
+            return (
+              <>
+                Updated {changes.map((c) => c.field).join(', ')}
+              </>
+            )
+          }
           return 'Updated category'
+        }
         case 'DELETE':
           return 'Deleted category'
       }
@@ -190,23 +288,100 @@ export default function ActivitySection({ category, name, limit = 10 }: Activity
     )
   }
 
+  const toggleExpand = (id: number) => {
+    setExpandedEntries((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
   return (
     <div>
       <div className='space-y-3'>
-        {entries.map((entry) => (
-          <div key={entry.id} className='flex items-start gap-3'>
-            {getOperationIcon(entry.operation)}
-            <div className='min-w-0 flex-1'>
-              <div className='text-sm'>{getActionText(entry)}</div>
-              <div className='text-neutral text-xs'>
-                {formatActor(entry.actor_address)} • {formatDate(entry.created_at)}
+        {entries.map(({ main: entry, subEvents }) => {
+          const hasSubEvents = subEvents.length > 0
+          const isExpanded = expandedEntries.has(entry.id)
+
+          return (
+            <div 
+              key={entry.id} 
+              className={`flex items-start gap-3 ${hasSubEvents ? 'cursor-pointer' : ''}`}
+              onClick={hasSubEvents ? () => toggleExpand(entry.id) : undefined}
+            >
+              <div className='flex-shrink-0 pt-0.5'>
+                {hasSubEvents && (
+                  <svg
+                    className={`h-3 w-3 text-neutral transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                    fill='none'
+                    viewBox='0 0 24 24'
+                    stroke='currentColor'
+                  >
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 5l7 7-7 7' />
+                  </svg>
+                )}
+                {!hasSubEvents && <div className='w-3' />}
+              </div>
+              {getOperationIcon(entry.operation)}
+              <div className='min-w-0 flex-1'>
+                <div className='text-sm'>
+                  {getActionText(entry)}
+                  {hasSubEvents && !isExpanded && (
+                    <span className='text-neutral text-xs ml-1'>(+{subEvents.length})</span>
+                  )}
+                </div>
+                {/* Show change details for category updates */}
+                {entry.table_name === 'clubs' && entry.operation === 'UPDATE' && (() => {
+                  const changes = getChangedFields(entry)
+                  if (changes.length > 0) {
+                    return (
+                      <div className='text-xs text-neutral mt-0.5'>
+                        {changes.map((change, idx) => (
+                          <span key={idx}>
+                            <span className='text-error line-through'>{change.from}</span>
+                            {' → '}
+                            <span className='text-success'>{change.to}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+                <div className='text-neutral text-xs flex items-center gap-1 mt-0.5'>
+                  {formatActor(entry.actor_address)} •{' '}
+                  <span className='group relative'>
+                    {formatRelativeTime(entry.created_at)}
+                    <span className='bg-secondary border-border absolute bottom-full left-0 mb-1 hidden whitespace-nowrap rounded border px-2 py-1 text-xs group-hover:block z-10'>
+                      {formatFullDate(entry.created_at)}
+                    </span>
+                  </span>
+                </div>
+                {/* Sub-events when expanded */}
+                {isExpanded && subEvents.length > 0 && (
+                  <div className='mt-2 pl-2 border-l-2 border-tertiary space-y-1'>
+                    {subEvents.map((sub) => {
+                      const oldCount = sub.old_data?.member_count as number | undefined
+                      const newCount = sub.new_data?.member_count as number | undefined
+                      return (
+                        <div key={sub.id} className='text-xs text-neutral'>
+                          Updated count: {String(oldCount)} → {String(newCount)}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
       <p className='text-neutral mt-4 text-center text-xs'>
-        Showing admin actions from the last 30 days (excludes automated updates)
+        Admin actions from the last year (automated tasks excluded)
       </p>
     </div>
   )

@@ -11,6 +11,9 @@ type PageProps = {
   params: Promise<{ name: string }>
 }
 
+type NameSortField = 'ens_name' | 'added_at'
+type SortDirection = 'asc' | 'desc'
+
 export default function CategoryDetailPage({ params }: PageProps) {
   const { name } = use(params)
   const queryClient = useQueryClient()
@@ -22,6 +25,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set())
   const [nameSearch, setNameSearch] = useState('')
+  const [nameSortField, setNameSortField] = useState<NameSortField>('ens_name')
+  const [nameSortDirection, setNameSortDirection] = useState<SortDirection>('asc')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
@@ -163,12 +168,78 @@ export default function CategoryDetailPage({ params }: PageProps) {
     }
   }
 
-  const filteredNames = category?.names?.filter((m) =>
-    m.ens_name.toLowerCase().includes(nameSearch.toLowerCase())
-  )
+  const filteredNames = (() => {
+    const filtered = category?.names?.filter((m) =>
+      m.ens_name.toLowerCase().includes(nameSearch.toLowerCase())
+    )
+    if (!filtered) return filtered
+    
+    // Sort
+    return [...filtered].sort((a, b) => {
+      let comparison = 0
+      switch (nameSortField) {
+        case 'ens_name':
+          comparison = a.ens_name.localeCompare(b.ens_name)
+          break
+        case 'added_at':
+          comparison = new Date(a.added_at).getTime() - new Date(b.added_at).getTime()
+          break
+      }
+      return nameSortDirection === 'asc' ? comparison : -comparison
+    })
+  })()
+
+  const handleNameSort = (field: NameSortField) => {
+    if (nameSortField === field) {
+      setNameSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setNameSortField(field)
+      setNameSortDirection('asc')
+    }
+  }
+
+  const NameSortIcon = ({ field }: { field: NameSortField }) => {
+    if (nameSortField !== field) return null
+    return (
+      <span className='ml-1'>
+        {nameSortDirection === 'asc' ? '↑' : '↓'}
+      </span>
+    )
+  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const formatRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHour = Math.floor(diffMin / 60)
+    const diffDay = Math.floor(diffHour / 24)
+    const diffMonth = Math.floor(diffDay / 30)
+    const diffYear = Math.floor(diffDay / 365)
+
+    if (diffSec < 60) return 'just now'
+    if (diffMin < 60) return `${diffMin}m ago`
+    if (diffHour < 24) return `${diffHour}h ago`
+    if (diffDay < 7) return `${diffDay}d ago`
+    if (diffDay < 30) return `${Math.floor(diffDay / 7)}w ago`
+    if (diffMonth < 12) return `${diffMonth}mo ago`
+    return `${diffYear}y ago`
+  }
+
+  const formatFullDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('en-US', {
+      weekday: 'short',
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -209,21 +280,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   return (
     <div className='p-8'>
-      {/* Header */}
-      <div className='mb-8'>
-        <Link href='/categories' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>
-          <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
-          </svg>
-          Back to Categories
-        </Link>
-        <h1 className='text-3xl font-bold'>{category.name}</h1>
-        <p className='text-neutral mt-1'>
-          {(category.name_count ?? 0).toLocaleString()} name{category.name_count !== 1 ? 's' : ''} • 
-          Created {formatDate(category.created_at)}
-        </p>
-      </div>
-
       {/* Success message */}
       {successMessage && (
         <div className='bg-success/10 border-success mb-6 rounded-lg border p-4'>
@@ -247,17 +303,16 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
         {/* Left column - Category details */}
-        <div className='lg:col-span-1'>
+        <div className='lg:col-span-1 space-y-6'>
+          {/* Category header + Details */}
           <div className='card'>
-            <div className='mb-4 flex items-center justify-between'>
-              <h2 className='text-lg font-semibold'>Details</h2>
-              {!isEditing && (
-                <button onClick={handleStartEdit} className='text-primary hover:underline text-sm'>
-                  Edit
-                </button>
-              )}
-            </div>
+            {/* Header */}
+            <h1 className='text-2xl font-bold'>{category.name}</h1>
 
+            {/* Divider */}
+            <div className='border-border my-4 border-t' />
+
+            {/* Description */}
             {isEditing ? (
               <div>
                 <label className='mb-2 block text-sm font-medium'>Description</label>
@@ -283,20 +338,39 @@ export default function CategoryDetailPage({ params }: PageProps) {
               </div>
             ) : (
               <div>
-                <p className='text-neutral text-sm'>Description</p>
+                <div className='flex items-center justify-between'>
+                  <p className='text-neutral text-sm'>Description</p>
+                  <button onClick={handleStartEdit} className='text-primary hover:underline text-sm'>
+                    Edit
+                  </button>
+                </div>
                 <p className='mt-1'>{category.description || <span className='text-neutral italic'>No description</span>}</p>
               </div>
             )}
 
             <div className='border-border mt-6 border-t pt-6'>
-              <div className='grid grid-cols-2 gap-4 text-sm'>
+              <div className='grid grid-cols-3 gap-4 text-sm'>
                 <div>
                   <p className='text-neutral'>Names</p>
                   <p className='text-xl font-bold'>{(category.name_count ?? 0).toLocaleString()}</p>
                 </div>
                 <div>
+                  <p className='text-neutral'>Created</p>
+                  <p className='group relative cursor-default'>
+                    {formatRelativeTime(category.created_at)}
+                    <span className='bg-secondary border-border absolute bottom-full left-0 mb-1 hidden whitespace-nowrap rounded border px-2 py-1 text-xs group-hover:block'>
+                      {formatFullDate(category.created_at)}
+                    </span>
+                  </p>
+                </div>
+                <div>
                   <p className='text-neutral'>Last Updated</p>
-                  <p>{formatDate(category.updated_at)}</p>
+                  <p className='group relative cursor-default'>
+                    {formatRelativeTime(category.updated_at)}
+                    <span className='bg-secondary border-border absolute bottom-full left-0 mb-1 hidden whitespace-nowrap rounded border px-2 py-1 text-xs group-hover:block'>
+                      {formatFullDate(category.updated_at)}
+                    </span>
+                  </p>
                 </div>
               </div>
             </div>
@@ -416,8 +490,18 @@ export default function CategoryDetailPage({ params }: PageProps) {
                             className='rounded'
                           />
                         </th>
-                        <th>ENS Name</th>
-                        <th>Added</th>
+                        <th 
+                          className='cursor-pointer hover:text-foreground'
+                          onClick={() => handleNameSort('ens_name')}
+                        >
+                          ENS Name <NameSortIcon field='ens_name' />
+                        </th>
+                        <th 
+                          className='cursor-pointer hover:text-foreground'
+                          onClick={() => handleNameSort('added_at')}
+                        >
+                          Added <NameSortIcon field='added_at' />
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -431,7 +515,11 @@ export default function CategoryDetailPage({ params }: PageProps) {
                               className='rounded'
                             />
                           </td>
-                          <td className='font-mono'>{entry.ens_name}</td>
+                          <td className='font-mono'>
+                            <Link href={`/names/${entry.ens_name}`} className='text-primary hover:underline'>
+                              {entry.ens_name}
+                            </Link>
+                          </td>
                           <td className='text-neutral text-sm'>{formatDate(entry.added_at)}</td>
                         </tr>
                       ))}
