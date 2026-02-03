@@ -7,6 +7,7 @@ import { fetchEnsName, removeCategoriesFromName } from '@/api/names'
 import { fetchCategories, addNames, type AddNamesResponse } from '@/api/categories'
 import ConfirmModal from '@/components/ConfirmModal'
 import SearchableSelect from '@/components/SearchableSelect'
+import ActivitySection from '@/components/ActivitySection'
 
 interface PageProps {
   params: Promise<{ name: string }>
@@ -21,6 +22,7 @@ export default function NameDetailPage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState('')
+  const [showMarketDetails, setShowMarketDetails] = useState(false)
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -206,7 +208,7 @@ export default function NameDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      <div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
+      <div className='grid grid-cols-1 gap-6 lg:grid-cols-4'>
         {/* Left column - Name details */}
         <div className='space-y-6 lg:col-span-1'>
           {/* Core Details */}
@@ -271,72 +273,90 @@ export default function NameDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Market Data */}
+          {/* Market Data - Collapsible */}
           <div className='card'>
-            <h2 className='mb-4 text-lg font-semibold'>Market</h2>
-            <div className='space-y-4 text-sm'>
+            <button
+              onClick={() => setShowMarketDetails(!showMarketDetails)}
+              className='flex w-full items-center justify-between text-left'
+            >
+              <h2 className='text-lg font-semibold'>Market</h2>
+              <svg
+                className={`h-5 w-5 text-neutral transition-transform ${showMarketDetails ? 'rotate-180' : ''}`}
+                fill='none'
+                viewBox='0 0 24 24'
+                stroke='currentColor'
+              >
+                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 9l-7 7-7-7' />
+              </svg>
+            </button>
+            {/* Summary - always visible */}
+            <div className='mt-3 flex items-center gap-4 text-sm'>
               <div>
-                <p className='text-neutral'>Listed For</p>
-                <p className={activeListing ? 'text-success font-semibold' : ''}>
-                  {activeListing ? formatEth(activeListing.price_wei || activeListing.price) : 'Not listed'}
-                </p>
+                <span className='text-neutral'>Listed: </span>
+                <span className={activeListing ? 'text-success font-semibold' : ''}>
+                  {activeListing ? formatEth(activeListing.price_wei || activeListing.price) : 'No'}
+                </span>
               </div>
-              <div>
-                <p className='text-neutral'>Highest Offer</p>
-                <p>{formatEth(ensName.highest_offer_wei)}</p>
-              </div>
-              <div className='border-border border-t pt-4'>
-                <p className='text-neutral mb-2'>Last Sale</p>
-                <div className='grid grid-cols-2 gap-4'>
-                  <div>
-                    <p className='text-neutral text-xs'>Price</p>
-                    <p>
-                      {formatEth(ensName.last_sale_price)}
-                      {ensName.last_sale_price_usd && (
-                        <span className='text-neutral ml-1 text-xs'>
-                          (${parseFloat(ensName.last_sale_price_usd).toFixed(0)})
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className='text-neutral text-xs'>Date</p>
-                    <p>{formatDate(ensName.last_sale_date)}</p>
+              {ensName.last_sale_price && (
+                <div>
+                  <span className='text-neutral'>Last: </span>
+                  <span>{formatEth(ensName.last_sale_price)}</span>
+                </div>
+              )}
+            </div>
+            {/* Expanded details */}
+            {showMarketDetails && (
+              <div className='border-border mt-4 space-y-4 border-t pt-4 text-sm'>
+                <div>
+                  <p className='text-neutral'>Highest Offer</p>
+                  <p>{formatEth(ensName.highest_offer_wei)}</p>
+                </div>
+                <div className='border-border border-t pt-4'>
+                  <p className='text-neutral mb-2'>Last Sale</p>
+                  <div className='grid grid-cols-2 gap-4'>
+                    <div>
+                      <p className='text-neutral text-xs'>Price</p>
+                      <p>
+                        {formatEth(ensName.last_sale_price)}
+                        {ensName.last_sale_price_usd && (
+                          <span className='text-neutral ml-1 text-xs'>
+                            (${parseFloat(ensName.last_sale_price_usd).toFixed(0)})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-neutral text-xs'>Date</p>
+                      <p>{formatDate(ensName.last_sale_date)}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Listings */}
-          {hasListing && (
-            <div className='card'>
-              <h2 className='mb-4 text-lg font-semibold'>
-                Active Listings ({listings.length})
-              </h2>
-              <div className='space-y-3'>
-                {listings.map((listing, idx) => (
-                  <div key={listing.id || idx} className='bg-tertiary rounded-lg p-3'>
-                    <div className='flex items-center justify-between'>
-                      <div>
-                        <p className='text-success font-semibold'>{formatEth(listing.price_wei || listing.price)}</p>
-                        <p className='text-neutral text-xs'>
-                          Source: {listing.source || 'Unknown'}
-                        </p>
-                      </div>
-                      <div className='text-right text-xs'>
-                        <p className='text-neutral'>Expires</p>
-                        <p>{formatDate(listing.expires_at)}</p>
-                      </div>
+                {/* Active Listings */}
+                {hasListing && (
+                  <div className='border-border border-t pt-4'>
+                    <p className='text-neutral mb-2'>Active Listings ({listings.length})</p>
+                    <div className='space-y-2'>
+                      {listings.map((listing, idx) => (
+                        <div key={listing.id || idx} className='bg-tertiary rounded-lg p-2'>
+                          <div className='flex items-center justify-between'>
+                            <div>
+                              <p className='text-success font-semibold text-sm'>{formatEth(listing.price_wei || listing.price)}</p>
+                              <p className='text-neutral text-xs'>
+                                {listing.source || 'Unknown'}
+                              </p>
+                            </div>
+                            <div className='text-right text-xs'>
+                              <p>{formatDate(listing.expires_at)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <p className='text-neutral mt-2 break-all text-xs'>
-                      Seller: {listing.seller_address}
-                    </p>
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Engagement */}
           <div className='card'>
@@ -354,7 +374,7 @@ export default function NameDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Right column - Categories */}
+        {/* Middle column - Categories */}
         <div className='lg:col-span-2'>
           <div className='card'>
             {/* Categories header */}
@@ -485,6 +505,14 @@ export default function NameDetailPage({ params }: PageProps) {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Right column - Activity */}
+        <div className='lg:col-span-1'>
+          <div className='card'>
+            <h2 className='mb-4 text-lg font-semibold'>Recent Activity</h2>
+            <ActivitySection name={ensName.name} limit={10} />
           </div>
         </div>
       </div>

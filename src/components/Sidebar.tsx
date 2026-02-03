@@ -1,12 +1,25 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useUserContext } from '@/context/user'
+import { useEnsName, useEnsAvatar } from 'wagmi'
+import { mainnet } from 'wagmi/chains'
 
 export default function Sidebar() {
   const pathname = usePathname()
   const { userAddress, handleSignOut } = useUserContext()
+
+  // Fetch ENS name and avatar
+  const { data: ensName } = useEnsName({
+    address: userAddress as `0x${string}` | undefined,
+    chainId: mainnet.id,
+  })
+  const { data: ensAvatar } = useEnsAvatar({
+    name: ensName ?? undefined,
+    chainId: mainnet.id,
+  })
 
   const isActive = (path: string) => {
     if (path === '/categories') {
@@ -16,7 +29,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className='bg-secondary border-border flex h-screen w-64 flex-col border-r'>
+    <aside className='bg-secondary border-border sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r'>
       {/* Logo */}
       <div className='border-border border-b p-6'>
         <h1 className='text-xl font-bold'>Cat Admin</h1>
@@ -91,11 +104,33 @@ export default function Sidebar() {
 
       {/* User section */}
       <div className='border-border border-t p-4'>
-        <div className='mb-3'>
-          <p className='text-neutral text-xs'>Connected as</p>
-          <p className='truncate font-mono text-sm'>
-            {userAddress?.slice(0, 6)}...{userAddress?.slice(-4)}
-          </p>
+        <div className='mb-3 flex items-center gap-3'>
+          {/* Avatar */}
+          <div className='relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-tertiary'>
+            {ensAvatar ? (
+              <Image
+                src={ensAvatar}
+                alt={ensName || 'Avatar'}
+                fill
+                className='object-cover'
+              />
+            ) : (
+              <div className='flex h-full w-full items-center justify-center text-neutral text-lg font-bold'>
+                {userAddress?.slice(2, 4).toUpperCase()}
+              </div>
+            )}
+          </div>
+          {/* Name/Address */}
+          <div className='min-w-0 flex-1'>
+            <p className='text-neutral text-xs'>Connected as</p>
+            {ensName ? (
+              <p className='truncate text-sm font-medium'>{ensName}</p>
+            ) : (
+              <p className='truncate font-mono text-sm'>
+                {userAddress?.slice(0, 6)}...{userAddress?.slice(-4)}
+              </p>
+            )}
+          </div>
         </div>
         <button
           onClick={handleSignOut}

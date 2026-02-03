@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { fetchActivity, type ActivityFilters } from '@/api/activity'
+import { fetchActivity, fetchActors, type ActivityFilters } from '@/api/activity'
 import { resolveAddresses } from '@/lib/ens'
+import SearchableSelect from '@/components/SearchableSelect'
 import type { AuditLogEntry } from '@/types'
 
 export default function ActivityPage() {
@@ -12,6 +13,35 @@ export default function ActivityPage() {
   const [filters, setFilters] = useState<ActivityFilters>({})
   const [showSystemUpdates, setShowSystemUpdates] = useState(false)
   const [ensNames, setEnsNames] = useState<Map<string, string | null>>(new Map())
+  const [actorEnsNames, setActorEnsNames] = useState<Map<string, string | null>>(new Map())
+
+  // Fetch unique actors for the dropdown
+  const { data: actorsData } = useQuery({
+    queryKey: ['activity-actors'],
+    queryFn: fetchActors,
+    staleTime: 60000, // Cache for 1 minute
+  })
+
+  const actors = actorsData || []
+
+  // Resolve actor addresses to ENS names for the dropdown
+  useEffect(() => {
+    if (actors.length > 0) {
+      resolveAddresses(actors).then(setActorEnsNames)
+    }
+  }, [actors])
+
+  // Build actor options for the dropdown
+  const actorOptions = actors.map((address) => {
+    const ensName = actorEnsNames.get(address.toLowerCase())
+    return {
+      value: address,
+      label: ensName 
+        ? `${ensName} (${address.slice(0, 6)}...${address.slice(-4)})`
+        : `${address.slice(0, 6)}...${address.slice(-4)}`,
+      searchTerms: [address.toLowerCase(), ensName?.toLowerCase() || ''].filter(Boolean),
+    }
+  })
 
   // Include hideSystem in the query - filter server-side for correct pagination
   const { data, isLoading, error, isFetching } = useQuery({
@@ -210,17 +240,16 @@ export default function ActivityPage() {
             <option value='DELETE'>Delete</option>
           </select>
         </div>
-        <div>
-          <label className='text-neutral mb-1 block text-xs'>Actor Address</label>
-          <input
-            type='text'
+        <div className='w-64'>
+          <label className='text-neutral mb-1 block text-xs'>Actor</label>
+          <SearchableSelect
+            options={actorOptions}
             value={filters.actor || ''}
-            onChange={(e) => {
-              setFilters({ ...filters, actor: e.target.value || undefined })
+            onChange={(value) => {
+              setFilters({ ...filters, actor: value || undefined })
               setPage(1)
             }}
-            placeholder='0x...'
-            className='w-44 text-sm font-mono'
+            placeholder='All actors...'
           />
         </div>
         {(filters.table || filters.operation || filters.actor) && (
@@ -247,7 +276,10 @@ export default function ActivityPage() {
             <input
               type='checkbox'
               checked={showSystemUpdates}
-              onChange={(e) => setShowSystemUpdates(e.target.checked)}
+              onChange={(e) => {
+                setShowSystemUpdates(e.target.checked)
+                setPage(1) // Reset to page 1 when toggling
+              }}
               className='peer sr-only'
             />
             <div className="peer h-5 w-9 rounded-full bg-tertiary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full"></div>

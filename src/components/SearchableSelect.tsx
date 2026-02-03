@@ -6,6 +6,7 @@ export interface SearchableOption {
   value: string
   label: string
   sublabel?: string
+  searchTerms?: string[] // Additional terms to search by (e.g., ENS name, address)
 }
 
 interface SearchableSelectProps {
@@ -32,11 +33,14 @@ export default function SearchableSelect({
 
   const selectedOption = options.find((opt) => opt.value === value)
 
-  const filteredOptions = options.filter(
-    (opt) =>
-      opt.label.toLowerCase().includes(search.toLowerCase()) ||
-      opt.value.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredOptions = options.filter((opt) => {
+    const searchLower = search.toLowerCase()
+    // Search in label, value, and any custom searchTerms
+    if (opt.label.toLowerCase().includes(searchLower)) return true
+    if (opt.value.toLowerCase().includes(searchLower)) return true
+    if (opt.searchTerms?.some((term) => term.toLowerCase().includes(searchLower))) return true
+    return false
+  })
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -125,7 +129,7 @@ export default function SearchableSelect({
                 className='px-4 py-3 text-center text-neutral text-sm'
                 style={{ backgroundColor: 'var(--secondary)' }}
               >
-                No matching categories
+                No matching results
               </div>
             ) : (
               filteredOptions.map((option) => (

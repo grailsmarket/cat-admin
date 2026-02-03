@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
     const operationFilter = url.searchParams.get('operation') // 'INSERT', 'UPDATE', 'DELETE'
     const actorFilter = url.searchParams.get('actor') // wallet address
     const hideSystem = url.searchParams.get('hideSystem') === 'true' // hide entries with no actor
+    const categoryFilter = url.searchParams.get('category') // filter by category name
+    const nameFilter = url.searchParams.get('name') // filter by ENS name
+    const daysLimit = url.searchParams.get('days') // limit to last N days
 
     // Build query with optional filters
     let whereClause = ''
@@ -39,6 +42,28 @@ export async function GET(request: NextRequest) {
     // Filter out system/worker updates (no actor_address) if requested
     if (hideSystem) {
       conditions.push('actor_address IS NOT NULL')
+    }
+    
+    // Filter by category: record_key = 'category' OR record_key LIKE 'category:%'
+    if (categoryFilter) {
+      conditions.push(`(record_key = $${paramIndex} OR record_key LIKE $${paramIndex} || ':%')`)
+      params.push(categoryFilter)
+      paramIndex++
+    }
+    
+    // Filter by ENS name: record_key LIKE '%:name'
+    if (nameFilter) {
+      conditions.push(`record_key LIKE '%:' || $${paramIndex}`)
+      params.push(nameFilter)
+      paramIndex++
+    }
+    
+    // Limit to last N days
+    if (daysLimit) {
+      const days = parseInt(daysLimit)
+      if (!isNaN(days) && days > 0) {
+        conditions.push(`created_at >= NOW() - INTERVAL '${days} days'`)
+      }
     }
     
     if (tableFilter) {

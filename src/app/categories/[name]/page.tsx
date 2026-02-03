@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchCategory, updateCategory, addNames, removeNames } from '@/api/categories'
 import ConfirmModal from '@/components/ConfirmModal'
+import ActivitySection from '@/components/ActivitySection'
 
 type PageProps = {
   params: Promise<{ name: string }>
@@ -299,6 +300,12 @@ export default function CategoryDetailPage({ params }: PageProps) {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Activity Section */}
+          <div className='card mt-6'>
+            <h2 className='mb-4 text-lg font-semibold'>Recent Activity</h2>
+            <ActivitySection category={name} limit={10} />
           </div>
         </div>
 
