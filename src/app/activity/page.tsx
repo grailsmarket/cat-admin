@@ -14,6 +14,7 @@ export default function ActivityPage() {
   const [showSystemUpdates, setShowSystemUpdates] = useState(false)
   const [ensNames, setEnsNames] = useState<Map<string, string | null>>(new Map())
   const [actorEnsNames, setActorEnsNames] = useState<Map<string, string | null>>(new Map())
+  const [expandedEntries, setExpandedEntries] = useState<Set<number>>(new Set())
 
   // Fetch unique actors for the dropdown
   const { data: actorsData } = useQuery({
@@ -50,19 +51,74 @@ export default function ActivityPage() {
     placeholderData: keepPreviousData,
   })
 
-  const entries = data?.data?.entries || []
+  const rawEntries = data?.data?.entries || []
   const pagination = data?.data?.pagination
+
+  // Group entries by timestamp + actor to identify triggered sub-events
+  type GroupedEntry = {
+    main: AuditLogEntry
+    subEvents: AuditLogEntry[]
+  }
+
+  const groupedEntries: GroupedEntry[] = []
+  const processedIds = new Set<number>()
+
+  for (const entry of rawEntries) {
+    if (processedIds.has(entry.id)) continue
+
+    // Find related entries (same second, same actor)
+    const entryTime = new Date(entry.created_at).getTime()
+    const related = rawEntries.filter((e) => {
+      if (e.id === entry.id || processedIds.has(e.id)) return false
+      const eTime = new Date(e.created_at).getTime()
+      // Within 1 second and same actor
+      return Math.abs(eTime - entryTime) < 1000 && e.actor_address === entry.actor_address
+    })
+
+    // Determine main vs sub events
+    // Membership actions are main, category updates are sub
+    if (entry.table_name === 'club_memberships') {
+      // This is a main event - find triggered update for THIS specific club only
+      const [clubName] = entry.record_key.split(':')
+      const subEvents = related.filter((e) => 
+        e.table_name === 'clubs' && e.operation === 'UPDATE' && e.record_key === clubName
+      )
+      // Only take the first matching sub-event (one membership change = one count update)
+      const matchedSubEvent = subEvents.length > 0 ? [subEvents[0]] : []
+      matchedSubEvent.forEach((e) => processedIds.add(e.id))
+      groupedEntries.push({ main: entry, subEvents: matchedSubEvent })
+    } else if (entry.table_name === 'clubs' && entry.operation === 'UPDATE') {
+      // Check if only member_count/last_sales_update changed - if so, skip standalone
+      const meaningfulChanges = entry.new_data ? Object.keys(entry.new_data).filter((key) => {
+        if (['created_at', 'updated_at', 'member_count', 'last_sales_update'].includes(key)) return false
+        return JSON.stringify(entry.old_data?.[key]) !== JSON.stringify(entry.new_data?.[key])
+      }) : []
+      
+      // Only show if meaningful changes OR it's a standalone update
+      if (meaningfulChanges.length > 0) {
+        groupedEntries.push({ main: entry, subEvents: [] })
+      }
+      // Otherwise skip - it's noise without a parent event
+    } else {
+      // Other entries (like category INSERT/DELETE)
+      groupedEntries.push({ main: entry, subEvents: [] })
+    }
+
+    processedIds.add(entry.id)
+  }
+
+  const entries = groupedEntries
 
   // Resolve actor addresses to ENS names
   useEffect(() => {
-    const addresses = entries
+    const addresses = rawEntries
       .map(e => e.actor_address)
       .filter((a): a is string => a !== null)
     
     if (addresses.length > 0) {
       resolveAddresses(addresses).then(setEnsNames)
     }
-  }, [entries])
+  }, [rawEntries])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -158,33 +214,63 @@ export default function ActivityPage() {
     return entry.operation
   }
 
+  // Fields to hide from change display (noisy/redundant)
+  const hiddenFields = ['created_at', 'updated_at', 'added_at', 'member_count', 'club_name', 'ens_name', 'name']
+
+  const formatRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHour = Math.floor(diffMin / 60)
+    const diffDay = Math.floor(diffHour / 24)
+
+    if (diffSec < 60) return 'just now'
+    if (diffMin < 60) return `${diffMin}m ago`
+    if (diffHour < 24) return `${diffHour}h ago`
+    if (diffDay < 7) return `${diffDay}d ago`
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  const formatFullDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
+
   const getChangedFields = (entry: AuditLogEntry): { field: string; from: string; to: string }[] => {
+    // For membership changes, don't show field details - the record_key tells the story
+    if (entry.table_name === 'club_memberships') {
+      return []
+    }
+
     if (entry.operation === 'INSERT') {
-      // Show new values
+      // For new categories, only show description if set
       if (!entry.new_data) return []
       return Object.entries(entry.new_data)
-        .filter(([key]) => !['created_at', 'updated_at'].includes(key))
+        .filter(([key]) => !hiddenFields.includes(key))
+        .filter(([, value]) => value !== null && value !== '')
         .map(([key, value]) => ({
           field: key,
           from: '—',
           to: String(value ?? ''),
         }))
     } else if (entry.operation === 'DELETE') {
-      // Show deleted values
-      if (!entry.old_data) return []
-      return Object.entries(entry.old_data)
-        .filter(([key]) => !['created_at', 'updated_at'].includes(key))
-        .map(([key, value]) => ({
-          field: key,
-          from: String(value ?? ''),
-          to: '—',
-        }))
+      // Don't show details for deletes
+      return []
     } else {
-      // UPDATE - show differences
+      // UPDATE - show only meaningful differences
       if (!entry.old_data || !entry.new_data) return []
       const changes: { field: string; from: string; to: string }[] = []
       for (const key of Object.keys(entry.new_data)) {
-        if (['created_at', 'updated_at'].includes(key)) continue
+        if (hiddenFields.includes(key)) continue
         const oldVal = entry.old_data[key]
         const newVal = entry.new_data[key]
         if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
@@ -340,54 +426,154 @@ export default function ActivityPage() {
                 <table>
                   <thead className='bg-secondary sticky top-0'>
                     <tr>
-                      <th>Time</th>
-                      <th>Type</th>
+                      <th className='w-24'>Time</th>
                       <th>Action</th>
-                      <th>Record</th>
-                      <th>Actor</th>
+                      <th>Changes</th>
+                      <th className='w-40'>Actor</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {entries.map((entry) => {
+                    {entries.map(({ main: entry, subEvents }) => {
                       const changes = getChangedFields(entry)
+                      const hasSubEvents = subEvents.length > 0
+                      const isExpanded = expandedEntries.has(entry.id)
+
+                      const toggleExpand = () => {
+                        setExpandedEntries((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(entry.id)) {
+                            next.delete(entry.id)
+                          } else {
+                            next.add(entry.id)
+                          }
+                          return next
+                        })
+                      }
+
                       return (
-                        <tr key={entry.id}>
-                          <td className='text-neutral whitespace-nowrap text-sm align-top'>
-                            {formatDate(entry.created_at)}
-                          </td>
-                          <td className='align-top'>
-                            <div className='flex items-center gap-2'>
-                              {getTableBadge(entry.table_name)}
-                              {getOperationBadge(entry.operation)}
-                            </div>
+                        <tr 
+                          key={entry.id} 
+                          className={hasSubEvents ? 'cursor-pointer hover:bg-secondary/50' : ''}
+                          onClick={hasSubEvents ? toggleExpand : undefined}
+                        >
+                          <td 
+                            className='text-neutral whitespace-nowrap text-sm cursor-default'
+                            title={formatFullDate(entry.created_at)}
+                          >
+                            {formatRelativeTime(entry.created_at)}
                           </td>
                           <td className='text-sm'>
-                            <div className='font-medium'>{getChangeDescription(entry)}</div>
-                            {changes.length > 0 && (
-                              <div className='mt-1 space-y-1 text-xs'>
-                                {changes.map((change, idx) => (
-                                  <div key={idx} className='flex items-center gap-1'>
-                                    <span className='text-neutral'>{change.field}:</span>
-                                    {entry.operation === 'UPDATE' ? (
-                                      <>
-                                        <span className='text-error line-through'>{change.from}</span>
-                                        <span className='text-neutral'>→</span>
-                                        <span className='text-success'>{change.to}</span>
-                                      </>
-                                    ) : entry.operation === 'INSERT' ? (
-                                      <span className='text-success'>{change.to}</span>
-                                    ) : (
-                                      <span className='text-error line-through'>{change.from}</span>
-                                    )}
-                                  </div>
-                                ))}
+                            <div className='flex items-center gap-2'>
+                              {/* Always reserve space for chevron to keep alignment */}
+                              <div className='w-4 flex-shrink-0'>
+                                {hasSubEvents && (
+                                  <svg 
+                                    className={`h-4 w-4 text-neutral transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                    fill='none' 
+                                    viewBox='0 0 24 24' 
+                                    stroke='currentColor'
+                                  >
+                                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 5l7 7-7 7' />
+                                  </svg>
+                                )}
+                              </div>
+                              {getOperationBadge(entry.operation)}
+                              <span>
+                                {entry.table_name === 'clubs' ? (
+                                  <>
+                                    {entry.operation === 'INSERT' && 'Created '}
+                                    {entry.operation === 'UPDATE' && 'Updated '}
+                                    {entry.operation === 'DELETE' && 'Deleted '}
+                                    <Link 
+                                      href={`/categories/${entry.record_key}`} 
+                                      className='text-primary hover:underline font-medium'
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {entry.record_key}
+                                    </Link>
+                                  </>
+                                ) : (
+                                  <>
+                                    {entry.operation === 'INSERT' && 'Added '}
+                                    {entry.operation === 'DELETE' && 'Removed '}
+                                    {(() => {
+                                      const [clubName, ensName] = entry.record_key.split(':')
+                                      return (
+                                        <>
+                                          <Link 
+                                            href={`/names/${ensName}`} 
+                                            className='text-primary hover:underline font-medium'
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            {ensName}
+                                          </Link>
+                                          <span className='text-neutral'> {entry.operation === 'INSERT' ? 'to' : 'from'} </span>
+                                          <Link 
+                                            href={`/categories/${clubName}`} 
+                                            className='text-primary hover:underline'
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            {clubName}
+                                          </Link>
+                                        </>
+                                      )
+                                    })()}
+                                  </>
+                                )}
+                              </span>
+                              {hasSubEvents && !isExpanded && (
+                                <span className='text-neutral text-xs'>
+                                  (+{subEvents.length} triggered)
+                                </span>
+                              )}
+                            </div>
+                            {/* Sub-events when expanded */}
+                            {isExpanded && subEvents.length > 0 && (
+                              <div className='mt-2 pl-6 border-l-2 border-tertiary space-y-1'>
+                                {subEvents.map((sub) => {
+                                  const oldCount = sub.old_data?.member_count as number | undefined
+                                  const newCount = sub.new_data?.member_count as number | undefined
+                                  return (
+                                    <div key={sub.id} className='text-xs text-neutral'>
+                                      <span className='bg-tertiary rounded px-1.5 py-0.5 mr-2'>triggered</span>
+                                      Updated{' '}
+                                      <Link 
+                                        href={`/categories/${sub.record_key}`} 
+                                        className='text-primary hover:underline'
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {sub.record_key}
+                                      </Link>
+                                      {oldCount !== undefined && newCount !== undefined && (
+                                        <span className='ml-1'>
+                                          (count: {String(oldCount)} → {String(newCount)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )}
                           </td>
-                          <td className='text-sm align-top'>{formatRecordKey(entry)}</td>
-                        <td className='text-sm align-top'>
-                          {formatActor(entry.actor_address)}
-                        </td>
+                          <td className='text-sm text-neutral'>
+                            {changes.length > 0 ? (
+                              <div className='space-y-0.5'>
+                                {changes.map((change, idx) => (
+                                  <div key={idx} className='text-xs'>
+                                    <span className='text-neutral/70'>{change.field}:</span>{' '}
+                                    <span className='text-error line-through'>{change.from}</span>
+                                    {' → '}
+                                    <span className='text-success'>{change.to}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className='text-neutral/50'>—</span>
+                            )}
+                          </td>
+                          <td className='text-sm'>
+                            {formatActor(entry.actor_address)}
+                          </td>
                         </tr>
                       )
                     })}
