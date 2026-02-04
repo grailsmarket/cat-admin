@@ -51,13 +51,13 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Security-Policy',
             value: [
-              "default-src 'self'",
+              "default-src 'self' blob:",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' https://grails.app https://*.ethid.org https://euc.li https://metadata.ens.domains https://i.seadn.io https://ipfs.io https://*.ipfs.io data: blob:",
               "font-src 'self'",
               // connect-src is permissive for blockchain APIs (ethereum-identity-kit, wagmi, etc.)
-              "connect-src 'self' https: wss:",
+              "connect-src 'self' https: wss: blob:",
               "frame-src 'self' https://*.walletconnect.com https://*.walletconnect.org",
               "object-src 'none'",
               "base-uri 'self'",
