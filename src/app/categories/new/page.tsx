@@ -116,14 +116,25 @@ export default function NewCategoryPage() {
         .filter(n => n.isValid && n.normalized)
         .map(n => n.normalized as string)
 
+      console.log('[create-category] Valid names to add:', validNames.length, validNames.slice(0, 5))
+
       if (validNames.length > 0) {
-        const addResult = await addNames(slug, validNames)
-        if (!addResult.success) {
-          // Category was created but members failed
+        try {
+          const addResult = await addNames(slug, validNames)
+          console.log('[create-category] Add names result:', addResult)
+          if (!addResult.success) {
+            // Category was created but members failed
+            return {
+              ...result,
+              memberError: addResult.error || 'Failed to add names',
+              invalidNames: addResult.invalidNames,
+            }
+          }
+        } catch (addError) {
+          console.error('[create-category] Add names error:', addError)
           return {
             ...result,
-            memberError: addResult.error,
-            invalidNames: addResult.invalidNames,
+            memberError: addError instanceof Error ? addError.message : 'Failed to add names',
           }
         }
       }

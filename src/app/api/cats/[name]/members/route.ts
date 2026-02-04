@@ -41,10 +41,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Normalize ENS names per ENSIP-15
-    const normalizationResults = names.map((n: string) => ({
-      original: n,
-      normalized: normalizeEnsName(n),
-    }))
+    const normalizationResults = names.map((n: string) => {
+      // Add .eth suffix if missing
+      const withSuffix = n.endsWith('.eth') ? n : `${n}.eth`
+      return {
+        original: n,
+        normalized: normalizeEnsName(withSuffix),
+      }
+    })
 
     const invalidEnsNames = normalizationResults
       .filter((r) => r.normalized === null)
@@ -56,6 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (normalizedNames.length === 0) {
       return NextResponse.json({ 
+        success: false,
         error: 'No valid ENS names provided',
         invalidNames: invalidEnsNames,
       }, { status: 400 })
@@ -70,39 +75,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    // Validate ENS names exist in ens_names table (case-insensitive)
-    const placeholders = normalizedNames.map((_, i) => `$${i + 1}`).join(', ')
-    const validNames = await query<{ name: string }>(`
-      SELECT name FROM ens_names WHERE LOWER(name) IN (${placeholders})
-    `, normalizedNames.map(n => n.toLowerCase()))
-
-    const validNameSet = new Set(validNames.map((v) => v.name.toLowerCase()))
-    const notFoundNames = normalizedNames.filter((n) => !validNameSet.has(n.toLowerCase()))
-
-    // Combine invalid names from normalization + not found in DB
-    const allInvalidNames = [...invalidEnsNames, ...notFoundNames]
-
-    if (allInvalidNames.length > 0) {
-      return NextResponse.json({
-        success: false,
-        error: 'Some ENS names are invalid or not found in database',
-        invalidNames: allInvalidNames,
-        details: {
-          invalidFormat: invalidEnsNames,
-          notInDatabase: notFoundNames,
-        }
-      }, { status: 400 })
+    // Report invalid names but continue with valid ones
+    if (invalidEnsNames.length > 0) {
+      console.log(`[cats] Skipping ${invalidEnsNames.length} invalid names:`, invalidEnsNames.slice(0, 5))
     }
 
-    // Use the actual names from DB (correct casing)
-    const dbNames = validNames.map(v => v.name)
+    // Use normalized names directly (no database validation required)
+    const namesToAdd = normalizedNames
 
     // Add names in a transaction with actor tracking for audit log
     const result = await withActorTransaction(address, async (client) => {
       let added = 0
       let skipped = 0
 
-      for (const ensName of dbNames) {
+      for (const ensName of namesToAdd) {
         // Use ON CONFLICT DO NOTHING with RETURNING to know if insert happened
         const insertResult = await client.query(`
           INSERT INTO club_memberships (club_name, ens_name, added_at)
@@ -130,6 +116,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       message: `Added ${result.added} member(s)`,
       added: result.added,
       skipped: result.skipped,
+      ...(invalidEnsNames.length > 0 && { 
+        invalidNames: invalidEnsNames,
+        invalidCount: invalidEnsNames.length,
+      }),
     })
   } catch (error) {
     console.error('Add members error:', error)

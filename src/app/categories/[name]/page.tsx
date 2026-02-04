@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState, use, useMemo } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, type InvalidNameEntry } from '@/api/categories'
+import { normalizeEnsName } from '@/lib/normalize'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import ActivitySection from '@/components/ActivitySection'
 
@@ -192,18 +193,24 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   const handleAddNames = () => {
     setError('')
-    const names = newNames
-      .split('\n')
-      .map((n) => n.trim())
-      .filter((n) => n.length > 0)
 
-    if (names.length === 0) {
+    if (parsedNames.length === 0) {
       setError('Please enter at least one ENS name')
       return
     }
 
+    if (hasInvalidInputNames) {
+      setError('Please fix invalid names before adding')
+      return
+    }
+
+    // Use normalized names
+    const validNames = parsedNames
+      .filter(n => n.isValid && n.normalized)
+      .map(n => n.normalized as string)
+
     // Show confirmation modal
-    setConfirmModal({ isOpen: true, type: 'add', names })
+    setConfirmModal({ isOpen: true, type: 'add', names: validNames })
   }
 
   const handleRemoveSelected = () => {
@@ -328,10 +335,45 @@ export default function CategoryDetailPage({ params }: PageProps) {
     })
   }
 
-  const inputNameCount = newNames
-    .split('\n')
-    .map((n) => n.trim())
-    .filter((n) => n.length > 0).length
+  // Parse and validate ENS names with live feedback
+  const parsedNames = useMemo(() => {
+    const lines = newNames.split('\n').map((n) => n.trim()).filter((n) => n.length > 0)
+    return lines.map(inputName => {
+      // Check for invalid TLDs (only .eth or no TLD allowed)
+      const dotIndex = inputName.lastIndexOf('.')
+      if (dotIndex !== -1) {
+        const tld = inputName.slice(dotIndex)
+        if (tld !== '.eth') {
+          return {
+            original: inputName,
+            normalized: null,
+            isValid: false,
+            reason: `invalid TLD "${tld}" - only .eth is allowed`
+          }
+        }
+      }
+      
+      // Add .eth if missing
+      const fullName = inputName.endsWith('.eth') ? inputName : `${inputName}.eth`
+      const normalized = normalizeEnsName(fullName)
+      // Strict: name must equal its normalized form (no uppercase, etc.)
+      const isValid = normalized !== null && normalized === fullName
+      return {
+        original: inputName,
+        normalized,
+        isValid,
+        reason: normalized === null 
+          ? 'invalid ENS name' 
+          : normalized !== fullName 
+            ? `must be lowercase: ${normalized.replace('.eth', '')}` 
+            : null
+      }
+    })
+  }, [newNames])
+
+  const inputNameCount = parsedNames.length
+  const invalidInputNames = parsedNames.filter(n => !n.isValid)
+  const hasInvalidInputNames = invalidInputNames.length > 0
 
   if (isLoading) {
     return (
@@ -580,21 +622,41 @@ export default function CategoryDetailPage({ params }: PageProps) {
             {showAddForm && (
               <div className='bg-secondary mb-6 rounded-lg p-4'>
                 <label className='mb-2 block text-sm font-medium'>
-                  Add ENS Names {inputNameCount > 0 && <span className='text-neutral'>({inputNameCount} names)</span>}
+                  Add ENS Names {inputNameCount > 0 && (
+                    <span className={hasInvalidInputNames ? 'text-error' : 'text-neutral'}>
+                      ({inputNameCount} names{hasInvalidInputNames ? `, ${invalidInputNames.length} invalid` : ''})
+                    </span>
+                  )}
                 </label>
                 <textarea
                   value={newNames}
                   onChange={(e) => setNewNames(e.target.value)}
                   placeholder={'vitalik.eth\nnick.eth\nbrantly.eth'}
                   rows={6}
-                  className='mb-4 w-full font-mono text-sm'
+                  className={`mb-4 w-full font-mono text-sm ${hasInvalidInputNames ? 'border-error' : ''}`}
                 />
+                {hasInvalidInputNames && (
+                  <div className='mb-4 rounded-lg border border-error bg-error/10 p-3'>
+                    <p className='text-error text-sm font-medium mb-1'>Invalid ENS names:</p>
+                    <ul className='text-error text-sm list-disc list-inside'>
+                      {invalidInputNames.slice(0, 10).map((n, i) => (
+                        <li key={i}>
+                          <span className='font-mono'>{n.original}</span>
+                          {n.reason && <span className='text-neutral ml-2'>({n.reason})</span>}
+                        </li>
+                      ))}
+                      {invalidInputNames.length > 10 && (
+                        <li className='text-neutral'>...and {invalidInputNames.length - 10} more</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
                 <div className='flex items-center justify-between'>
                   <p className='text-neutral text-sm'>Enter one ENS name per line</p>
                   <button
                     onClick={handleAddNames}
                     className='btn btn-primary text-sm'
-                    disabled={addNamesMutation.isPending || inputNameCount === 0}
+                    disabled={addNamesMutation.isPending || inputNameCount === 0 || hasInvalidInputNames}
                   >
                     {addNamesMutation.isPending ? 'Adding...' : 'Add Names'}
                   </button>
