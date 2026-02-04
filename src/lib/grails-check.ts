@@ -26,20 +26,27 @@ export async function checkCategoryInGrails(categorySlug: string): Promise<Grail
     }
   }
 
-  // Check images on grails.app
-  const avatarUrl = `https://grails.app/clubs/${categorySlug}/avatar.jpg`
+  // Check images on grails.app (support multiple extensions)
+  const avatarUrls = [
+    `https://grails.app/clubs/${categorySlug}/avatar.jpg`,
+    `https://grails.app/clubs/${categorySlug}/avatar.jpeg`,
+    `https://grails.app/clubs/${categorySlug}/avatar.png`,
+    `https://grails.app/clubs/${categorySlug}/avatar.webp`,
+  ]
   const headerUrls = [
-    `https://grails.app/clubs/${categorySlug}/header.jpeg`,
     `https://grails.app/clubs/${categorySlug}/header.jpg`,
+    `https://grails.app/clubs/${categorySlug}/header.jpeg`,
     `https://grails.app/clubs/${categorySlug}/header.png`,
+    `https://grails.app/clubs/${categorySlug}/header.webp`,
   ]
 
   // Run all checks in parallel
-  const [avatarExists, ...headerChecks] = await Promise.all([
-    checkUrl(avatarUrl),
-    ...headerUrls.map(url => checkUrl(url)),
+  const [avatarChecks, headerChecks] = await Promise.all([
+    Promise.all(avatarUrls.map(url => checkUrl(url))),
+    Promise.all(headerUrls.map(url => checkUrl(url))),
   ])
   
+  const avatarExists = avatarChecks.some(exists => exists)
   const headerExists = headerChecks.some(exists => exists)
 
   return {
