@@ -41,27 +41,34 @@ export type CreateCategoryResponse = ApiResponse<Category> & {
 // Create category
 export async function createCategory(
   name: string,
-  description?: string
+  description?: string,
+  classifications?: string[]
 ): Promise<CreateCategoryResponse> {
   const response = await fetch('/api/cats', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify({ name, description, classifications }),
   })
   return response.json()
+}
+
+// Update category options
+export interface UpdateCategoryOptions {
+  description?: string
+  classifications?: string[]
 }
 
 // Update category
 export async function updateCategory(
   name: string,
-  description: string
+  options: UpdateCategoryOptions
 ): Promise<ApiResponse<Category>> {
   const response = await fetch(`/api/cats/${name}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ description }),
+    body: JSON.stringify(options),
   })
   return response.json()
 }

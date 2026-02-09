@@ -4,6 +4,7 @@ export type Category = {
   name: string
   description: string | null
   name_count: number
+  classifications: string[]
   created_at: string
   updated_at: string
 }

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCategories } from '@/api/categories'
+import { CLASSIFICATION_LABELS, type Classification } from '@/constants/classifications'
 
 type SortField = 'name' | 'name_count' | 'created_at' | 'updated_at'
 type SortDirection = 'asc' | 'desc'
@@ -22,13 +23,14 @@ export default function CategoriesPage() {
 
   // Filter and sort categories
   const filteredCategories = useMemo(() => {
-    // Filter by search
+    // Filter by search (includes classifications)
     const searchLower = search.toLowerCase()
     const filtered = search
       ? categories.filter(
           (cat) =>
             cat.name.toLowerCase().includes(searchLower) ||
-            cat.description?.toLowerCase().includes(searchLower)
+            cat.description?.toLowerCase().includes(searchLower) ||
+            cat.classifications?.some(c => c.toLowerCase().includes(searchLower))
         )
       : [...categories]
 
@@ -180,9 +182,10 @@ export default function CategoriesPage() {
                   className='cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('name')}
                 >
-                  Slugs <SortIcon field='name' />
+                  Slug <SortIcon field='name' />
                 </th>
                 <th>Description</th>
+                <th>Classifications</th>
                 <th
                   className='cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('name_count')}
@@ -217,6 +220,22 @@ export default function CategoriesPage() {
                   </td>
                   <td className='text-neutral max-w-xs truncate'>
                     {category.description || '—'}
+                  </td>
+                  <td>
+                    {category.classifications && category.classifications.length > 0 ? (
+                      <div className='flex flex-wrap gap-1'>
+                        {category.classifications.map((c) => (
+                          <span
+                            key={c}
+                            className='bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium'
+                          >
+                            {CLASSIFICATION_LABELS[c as Classification] || c}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className='text-neutral'>—</span>
+                    )}
                   </td>
                   <td>
                     <span className='bg-tertiary rounded-full px-3 py-1 text-sm'>

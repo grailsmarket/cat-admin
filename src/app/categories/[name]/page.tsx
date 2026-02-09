@@ -7,6 +7,7 @@ import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames,
 import { normalizeEnsName } from '@/lib/normalize'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import ActivitySection from '@/components/ActivitySection'
+import { VALID_CLASSIFICATIONS, CLASSIFICATION_LABELS, type Classification } from '@/constants/classifications'
 
 type PageProps = {
   params: Promise<{ name: string }>
@@ -22,6 +23,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [page, setPage] = useState(1)
   const [isEditing, setIsEditing] = useState(false)
   const [description, setDescription] = useState('')
+  const [editClassifications, setEditClassifications] = useState<Classification[]>([])
   const [newNames, setNewNames] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set())
@@ -54,14 +56,14 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   const category = data?.data
 
-  // Update description mutation
+  // Update category mutation
   const updateMutation = useMutation({
-    mutationFn: () => updateCategory(name, description),
+    mutationFn: () => updateCategory(name, { description, classifications: editClassifications }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['category', name] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       setIsEditing(false)
-      showSuccess('Description updated successfully')
+      showSuccess('Category updated successfully')
     },
     onError: (err: Error) => setError(err.message),
   })
@@ -178,6 +180,11 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   const handleStartEdit = () => {
     setDescription(category?.description || '')
+    // Initialize classifications from category data
+    const currentClassifications = (category?.classifications || []).filter(
+      (c): c is Classification => VALID_CLASSIFICATIONS.includes(c as Classification)
+    )
+    setEditClassifications(currentClassifications)
     setIsEditing(true)
     setError('')
   }
@@ -185,6 +192,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const handleCancelEdit = () => {
     setIsEditing(false)
     setDescription('')
+    setEditClassifications([])
   }
 
   const handleSaveDescription = () => {
@@ -434,18 +442,63 @@ export default function CategoryDetailPage({ params }: PageProps) {
             {/* Divider */}
             <div className='border-border my-4 border-t' />
 
-            {/* Description */}
+            {/* Description & Classifications */}
             {isEditing ? (
-              <div>
-                <label className='mb-2 block text-sm font-medium'>Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                  className='mb-4 w-full resize-none'
-                  placeholder='Enter description...'
-                />
-                <div className='flex gap-2'>
+              <div className='space-y-4'>
+                <div>
+                  <label className='mb-2 block text-sm font-medium'>Description</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    className='w-full resize-none'
+                    placeholder='Enter description...'
+                  />
+                </div>
+                
+                <div>
+                  <label className='mb-2 block text-sm font-medium'>Classifications</label>
+                  <div className='flex flex-wrap gap-2'>
+                    {VALID_CLASSIFICATIONS.map((classification) => {
+                      const isSelected = editClassifications.includes(classification)
+                      return (
+                        <label
+                          key={classification}
+                          className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all select-none ${
+                            isSelected
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border hover:border-primary/50 hover:bg-surface-2'
+                          }`}
+                        >
+                          <input
+                            type='checkbox'
+                            checked={isSelected}
+                            onChange={() => {
+                              if (isSelected) {
+                                setEditClassifications(editClassifications.filter((c) => c !== classification))
+                              } else {
+                                setEditClassifications([...editClassifications, classification])
+                              }
+                            }}
+                            className='sr-only'
+                          />
+                          <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                            isSelected ? 'border-primary bg-primary text-white' : 'border-neutral/30'
+                          }`}>
+                            {isSelected && (
+                              <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={3}>
+                                <path strokeLinecap='round' strokeLinejoin='round' d='M5 13l4 4L19 7' />
+                              </svg>
+                            )}
+                          </span>
+                          {CLASSIFICATION_LABELS[classification]}
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+                
+                <div className='flex gap-2 pt-2'>
                   <button
                     onClick={handleSaveDescription}
                     className='btn btn-primary text-sm'
@@ -459,14 +512,34 @@ export default function CategoryDetailPage({ params }: PageProps) {
                 </div>
               </div>
             ) : (
-              <div>
-                <div className='flex items-center justify-between'>
-                  <p className='text-neutral text-sm'>Description</p>
-                  <button onClick={handleStartEdit} className='text-primary hover:underline text-sm'>
-                    Edit
-                  </button>
+              <div className='space-y-4'>
+                <div>
+                  <div className='flex items-center justify-between'>
+                    <p className='text-neutral text-sm'>Description</p>
+                    <button onClick={handleStartEdit} className='text-primary hover:underline text-sm'>
+                      Edit
+                    </button>
+                  </div>
+                  <p className='mt-1'>{category.description || <span className='text-neutral italic'>No description</span>}</p>
                 </div>
-                <p className='mt-1'>{category.description || <span className='text-neutral italic'>No description</span>}</p>
+                
+                <div>
+                  <p className='text-neutral text-sm mb-2'>Classifications</p>
+                  {category.classifications && category.classifications.length > 0 ? (
+                    <div className='flex flex-wrap gap-1.5'>
+                      {category.classifications.map((classification) => (
+                        <span
+                          key={classification}
+                          className='bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium'
+                        >
+                          {CLASSIFICATION_LABELS[classification as Classification] || classification}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className='text-neutral italic text-sm'>No classifications</p>
+                  )}
+                </div>
               </div>
             )}
 

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
 import { checkCategoryInGrails } from '@/lib/grails-check'
+import { validateClassifications } from '@/constants/classifications'
 import type { Category } from '@/types'
 
 // GET /api/cats - List all categories (direct DB)
@@ -25,7 +26,8 @@ export async function GET() {
       SELECT 
         name, 
         description, 
-        member_count AS name_count, 
+        member_count AS name_count,
+        COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications,
         created_at, 
         updated_at
       FROM clubs
@@ -62,11 +64,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, description } = body
+    const { name, description, classifications: rawClassifications } = body
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
+
+    // Validate classifications (filter to only valid ones)
+    const classifications = Array.isArray(rawClassifications) 
+      ? validateClassifications(rawClassifications) 
+      : []
 
     // Validate name format (lowercase, no spaces, alphanumeric with underscores)
     const nameRegex = /^[a-z0-9_]+$/
@@ -126,10 +133,10 @@ export async function POST(request: NextRequest) {
     // Create category with actor tracking for audit log
     const created = await withActorTransaction(address, async (client) => {
       const result = await client.query(`
-        INSERT INTO clubs (name, description, member_count, created_at, updated_at)
-        VALUES ($1, $2, 0, NOW(), NOW())
-        RETURNING name, description, member_count AS name_count, created_at, updated_at
-      `, [name, description || null])
+        INSERT INTO clubs (name, description, classifications, member_count, created_at, updated_at)
+        VALUES ($1, $2, $3, 0, NOW(), NOW())
+        RETURNING name, description, member_count AS name_count, COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications, created_at, updated_at
+      `, [name, description || null, classifications.length > 0 ? classifications : null])
       return result.rows[0] as Category
     })
 

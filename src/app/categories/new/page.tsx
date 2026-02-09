@@ -7,6 +7,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { createCategory, addNames, fetchCategories, type CreateCategoryResponse } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
 import { ConfirmModal } from '@/components/ConfirmModal'
+import { VALID_CLASSIFICATIONS, CLASSIFICATION_LABELS, type Classification } from '@/constants/classifications'
 
 type SlugCheckResult = {
   isLive: boolean
@@ -19,6 +20,7 @@ export default function NewCategoryPage() {
 
   const [slug, setSlug] = useState('')
   const [description, setDescription] = useState('')
+  const [classifications, setClassifications] = useState<Classification[]>([])
   const [initialNames, setInitialNames] = useState('')
   const [error, setError] = useState('')
   const [errorDetails, setErrorDetails] = useState<{ 
@@ -102,7 +104,7 @@ export default function NewCategoryPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       // First create the category
-      const result = await createCategory(slug, description)
+      const result = await createCategory(slug, description, classifications)
       if (!result.success) {
         const error = new Error(result.error || 'Failed to create category') as Error & {
           details?: CreateCategoryResponse['details']
@@ -316,7 +318,7 @@ export default function NewCategoryPage() {
           </div>
 
           {/* Description */}
-          <div>
+          <div className='mb-6'>
             <label htmlFor='description' className='mb-2 block text-sm font-medium'>
               Description
             </label>
@@ -329,6 +331,65 @@ export default function NewCategoryPage() {
               className='w-full resize-none'
               disabled={createMutation.isPending || !canInteractWithForm}
             />
+          </div>
+
+          {/* Classifications */}
+          <div>
+            <label className='mb-2 block text-sm font-medium'>
+              Classifications
+            </label>
+            <p className='text-neutral mb-3 text-sm'>
+              Select meta-categories this category belongs to. Used for filtering on grails.app.
+            </p>
+            <div className='flex flex-wrap gap-2'>
+              {VALID_CLASSIFICATIONS.map((classification) => {
+                const isSelected = classifications.includes(classification)
+                const isDisabled = createMutation.isPending || !canInteractWithForm
+                return (
+                  <label
+                    key={classification}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all select-none ${
+                      isDisabled
+                        ? 'cursor-not-allowed opacity-50'
+                        : 'cursor-pointer'
+                    } ${
+                      isSelected
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : `border-border ${!isDisabled && 'hover:border-primary/50 hover:bg-surface-2'}`
+                    }`}
+                  >
+                    <input
+                      type='checkbox'
+                      checked={isSelected}
+                      disabled={isDisabled}
+                      onChange={() => {
+                        if (isSelected) {
+                          setClassifications(classifications.filter((c) => c !== classification))
+                        } else {
+                          setClassifications([...classifications, classification])
+                        }
+                      }}
+                      className='sr-only'
+                    />
+                    <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                      isSelected ? 'border-primary bg-primary text-white' : 'border-neutral/30'
+                    }`}>
+                      {isSelected && (
+                        <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={3}>
+                          <path strokeLinecap='round' strokeLinejoin='round' d='M5 13l4 4L19 7' />
+                        </svg>
+                      )}
+                    </span>
+                    {CLASSIFICATION_LABELS[classification]}
+                  </label>
+                )
+              })}
+            </div>
+            {classifications.length > 0 && (
+              <p className='text-neutral mt-2 text-xs'>
+                Selected: {classifications.map((c) => CLASSIFICATION_LABELS[c]).join(', ')}
+              </p>
+            )}
           </div>
         </div>
 
@@ -510,6 +571,9 @@ export default function NewCategoryPage() {
             <div className="bg-surface-2 rounded-lg p-3 space-y-1">
               <p><strong>Slug:</strong> <span className="font-mono">{slug}</span></p>
               {description && <p><strong>Description:</strong> {description}</p>}
+              {classifications.length > 0 && (
+                <p><strong>Classifications:</strong> {classifications.map((c) => CLASSIFICATION_LABELS[c]).join(', ')}</p>
+              )}
               {nameCount > 0 && <p><strong>Initial names:</strong> {nameCount}</p>}
             </div>
             <p className="text-error font-medium">

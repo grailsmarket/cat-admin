@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
+import { validateClassifications } from '@/constants/classifications'
 import type { Category } from '@/types'
 
 type RouteParams = {
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Get category details
     const [category] = await query<Category>(`
-      SELECT name, description, member_count AS name_count, created_at, updated_at
+      SELECT name, description, member_count AS name_count, COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications, created_at, updated_at
       FROM clubs
       WHERE name = $1
     `, [name])
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         name: category.name,
         description: category.description,
         name_count: nameCount,
+        classifications: category.classifications || [],
         created_at: category.created_at,
         updated_at: category.updated_at,
         names: names.map((n) => ({
@@ -110,7 +112,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json()
-    const { description } = body
+    const { description, classifications: rawClassifications } = body
 
     // Limit description length
     if (description && description.length > 500) {
@@ -118,6 +120,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         error: 'Description must be 500 characters or less' 
       }, { status: 400 })
     }
+
+    // Validate classifications if provided
+    const classifications = rawClassifications !== undefined
+      ? (Array.isArray(rawClassifications) ? validateClassifications(rawClassifications) : [])
+      : undefined
 
     // Check if category exists
     const [existing] = await query<Category>(`
@@ -130,12 +137,31 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Update category with actor tracking for audit log
     const updated = await withActorTransaction(address, async (client) => {
+      // Build dynamic update based on what was provided
+      const setClauses: string[] = ['updated_at = NOW()']
+      const values: (string | string[] | null)[] = [name]
+      let paramIndex = 2
+
+      // Always update description if provided (even to null)
+      if (description !== undefined) {
+        setClauses.push(`description = $${paramIndex}`)
+        values.push(description || null)
+        paramIndex++
+      }
+
+      // Update classifications if provided
+      if (classifications !== undefined) {
+        setClauses.push(`classifications = $${paramIndex}`)
+        values.push(classifications.length > 0 ? classifications : null)
+        paramIndex++
+      }
+
       const result = await client.query(`
         UPDATE clubs
-        SET description = $2, updated_at = NOW()
+        SET ${setClauses.join(', ')}
         WHERE name = $1
-        RETURNING name, description, member_count AS name_count, created_at, updated_at
-      `, [name, description || null])
+        RETURNING name, description, member_count AS name_count, COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications, created_at, updated_at
+      `, values)
       return result.rows[0] as Category
     })
 
