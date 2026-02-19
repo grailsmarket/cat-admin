@@ -2,6 +2,7 @@
 
 import { useState, use, useMemo, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, uploadCategoryImage, deleteCategoryImage, type InvalidNameEntry } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
@@ -681,9 +682,11 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
                   </div>
                 ) : category.avatar_url ? (
-                  <img
+                  <Image
                     src={category.avatar_url}
                     alt={`${category.name} avatar`}
+                    width={96}
+                    height={96}
                     className='h-24 w-24 rounded-lg border border-border object-cover'
                   />
                 ) : (
@@ -729,9 +732,11 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
                   </div>
                 ) : category.header_url ? (
-                  <img
+                  <Image
                     src={category.header_url}
                     alt={`${category.name} header`}
+                    width={400}
+                    height={128}
                     className='h-32 w-full rounded-lg border border-border object-cover'
                   />
                 ) : (

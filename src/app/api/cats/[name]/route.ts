@@ -40,8 +40,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const limit = Math.min(Math.max(1, requestedLimit), MAX_LIMIT)
     const offset = (page - 1) * limit
 
+    // TODO: add display_name to SELECT once ALTER TABLE migration runs
     const [category] = await query<Category>(`
-      SELECT name, display_name, description, member_count AS name_count,
+      SELECT name, description, member_count AS name_count,
         COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications,
         avatar_image_key, header_image_key, created_at, updated_at
       FROM clubs
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       success: true,
       data: {
         name: category.name,
-        display_name: category.display_name,
+        display_name: category.display_name || null,
         description: category.description,
         name_count: nameCount,
         classifications: category.classifications || [],
@@ -156,11 +157,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         paramIndex++
       }
 
-      if (displayName !== undefined) {
-        setClauses.push(`display_name = $${paramIndex}`)
-        values.push(displayName || null)
-        paramIndex++
-      }
+      // TODO: uncomment once ALTER TABLE migration runs
+      // if (displayName !== undefined) {
+      //   setClauses.push(`display_name = $${paramIndex}`)
+      //   values.push(displayName || null)
+      //   paramIndex++
+      // }
 
       if (classifications !== undefined) {
         setClauses.push(`classifications = $${paramIndex}`)
@@ -172,9 +174,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         UPDATE clubs
         SET ${setClauses.join(', ')}
         WHERE name = $1
-        RETURNING name, display_name, description, member_count AS name_count,
+        RETURNING name, description, member_count AS name_count,
           COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications,
           avatar_image_key, header_image_key, created_at, updated_at
+        -- TODO: add display_name to RETURNING once ALTER TABLE migration runs
       `, values)
       return result.rows[0] as Category
     })
