@@ -4,7 +4,7 @@ import { useState, use, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, uploadCategoryImage, deleteCategoryImage, type InvalidNameEntry } from '@/api/categories'
+import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, uploadCategoryImage, type InvalidNameEntry } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import ActivitySection from '@/components/ActivitySection'
@@ -51,9 +51,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
-    type: 'add' | 'remove' | 'description' | 'delete-image'
+    type: 'add' | 'remove' | 'description'
     names: string[]
-    imageType?: 'avatar' | 'header'
   }>({ isOpen: false, type: 'add', names: [] })
 
   const { data, isLoading, isFetching, error: fetchError } = useQuery({
@@ -159,22 +158,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
     } finally {
       setImageUploading(null)
     }
-  }
-
-  const handleImageDelete = async (type: 'avatar' | 'header') => {
-    setError('')
-    try {
-      const result = await deleteCategoryImage(name, type)
-      if (result.success) {
-        queryClient.invalidateQueries({ queryKey: ['category', name] })
-        showSuccess(`${type === 'avatar' ? 'Avatar' : 'Header'} image deleted`)
-      } else {
-        setError(result.error || `Failed to delete ${type} image`)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to delete ${type} image`)
-    }
-    setConfirmModal({ isOpen: false, type: 'add', names: [] })
   }
 
   const handleScanInvalidNames = async () => {
@@ -293,8 +276,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
       updateMutation.mutate(undefined, {
         onSettled: () => setConfirmModal({ isOpen: false, type: 'description', names: [] }),
       })
-    } else if (confirmModal.type === 'delete-image' && confirmModal.imageType) {
-      handleImageDelete(confirmModal.imageType)
     }
   }
 
@@ -650,32 +631,21 @@ export default function CategoryDetailPage({ params }: PageProps) {
               <div>
                 <div className='flex items-center justify-between mb-2'>
                   <p className='text-neutral text-sm'>Avatar</p>
-                  <div className='flex items-center gap-2'>
-                    <label className='text-primary hover:underline text-sm cursor-pointer'>
-                      {category.avatar_url ? 'Replace' : 'Upload'}
-                      <input
-                        ref={avatarInputRef}
-                        type='file'
-                        accept='image/jpeg,image/png'
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) handleImageUpload('avatar', file)
-                          if (avatarInputRef.current) avatarInputRef.current.value = ''
-                        }}
-                        className='sr-only'
-                        disabled={imageUploading !== null}
-                      />
-                    </label>
-                    {category.avatar_url && (
-                      <button
-                        onClick={() => setConfirmModal({ isOpen: true, type: 'delete-image', names: [], imageType: 'avatar' })}
-                        className='text-error hover:underline text-sm'
-                        disabled={imageUploading !== null}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
+                  <label className='text-primary hover:underline text-sm cursor-pointer'>
+                    {category.avatar_url ? 'Replace' : 'Upload'}
+                    <input
+                      ref={avatarInputRef}
+                      type='file'
+                      accept='image/jpeg,image/png'
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleImageUpload('avatar', file)
+                        if (avatarInputRef.current) avatarInputRef.current.value = ''
+                      }}
+                      className='sr-only'
+                      disabled={imageUploading !== null}
+                    />
+                  </label>
                 </div>
                 {imageUploading === 'avatar' ? (
                   <div className='flex h-24 w-24 items-center justify-center rounded-lg border border-border'>
@@ -700,32 +670,21 @@ export default function CategoryDetailPage({ params }: PageProps) {
               <div>
                 <div className='flex items-center justify-between mb-2'>
                   <p className='text-neutral text-sm'>Header</p>
-                  <div className='flex items-center gap-2'>
-                    <label className='text-primary hover:underline text-sm cursor-pointer'>
-                      {category.header_url ? 'Replace' : 'Upload'}
-                      <input
-                        ref={headerInputRef}
-                        type='file'
-                        accept='image/jpeg,image/png'
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) handleImageUpload('header', file)
-                          if (headerInputRef.current) headerInputRef.current.value = ''
-                        }}
-                        className='sr-only'
-                        disabled={imageUploading !== null}
-                      />
-                    </label>
-                    {category.header_url && (
-                      <button
-                        onClick={() => setConfirmModal({ isOpen: true, type: 'delete-image', names: [], imageType: 'header' })}
-                        className='text-error hover:underline text-sm'
-                        disabled={imageUploading !== null}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
+                  <label className='text-primary hover:underline text-sm cursor-pointer'>
+                    {category.header_url ? 'Replace' : 'Upload'}
+                    <input
+                      ref={headerInputRef}
+                      type='file'
+                      accept='image/jpeg,image/png'
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleImageUpload('header', file)
+                        if (headerInputRef.current) headerInputRef.current.value = ''
+                      }}
+                      className='sr-only'
+                      disabled={imageUploading !== null}
+                    />
+                  </label>
                 </div>
                 {imageUploading === 'header' ? (
                   <div className='flex h-32 w-full items-center justify-center rounded-lg border border-border'>
@@ -735,9 +694,9 @@ export default function CategoryDetailPage({ params }: PageProps) {
                   <Image
                     src={category.header_url}
                     alt={`${category.name} header`}
-                    width={400}
-                    height={128}
-                    className='h-32 w-full rounded-lg border border-border object-cover'
+                    width={800}
+                    height={200}
+                    className='w-full rounded-lg border border-border'
                   />
                 ) : (
                   <div className='flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed border-border'>
@@ -1059,29 +1018,23 @@ export default function CategoryDetailPage({ params }: PageProps) {
             ? 'Add Names to Category'
             : confirmModal.type === 'remove'
               ? 'Remove Names from Category'
-              : confirmModal.type === 'delete-image'
-                ? `Delete ${confirmModal.imageType === 'avatar' ? 'Avatar' : 'Header'} Image`
-                : 'Update Category'
+              : 'Update Category'
         }
         message={
           confirmModal.type === 'add'
             ? `Are you sure you want to add ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} to "${name}"?`
             : confirmModal.type === 'remove'
               ? `Are you sure you want to remove ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} from "${name}"? This action cannot be undone.`
-              : confirmModal.type === 'delete-image'
-                ? `Are you sure you want to delete the ${confirmModal.imageType} image for "${name}"? This will remove it from S3.`
-                : `Are you sure you want to update "${name}"?`
+              : `Are you sure you want to update "${name}"?`
         }
         confirmText={
           confirmModal.type === 'add'
             ? 'Add Names'
             : confirmModal.type === 'remove'
               ? 'Remove Names'
-              : confirmModal.type === 'delete-image'
-                ? 'Delete Image'
-                : 'Update'
+              : 'Update'
         }
-        variant={confirmModal.type === 'remove' || confirmModal.type === 'delete-image' ? 'danger' : 'default'}
+        variant={confirmModal.type === 'remove' ? 'danger' : 'default'}
         isLoading={addNamesMutation.isPending || removeNamesMutation.isPending || updateMutation.isPending}
       />
     </div>
