@@ -1,11 +1,11 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 
 const storageConfig = {
-  bucket: process.env.BUCKET,
-  accessKeyId: process.env.ACCESS_KEY_ID,
-  secretAccessKey: process.env.SECRET_ACCESS_KEY,
-  endpoint: process.env.ENDPOINT,
-  region: process.env.REGION || 'auto',
+  bucket: process.env.S3_BUCKET,
+  accessKeyId: process.env.S3_ACCESS_KEY_ID,
+  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+  endpoint: process.env.S3_ENDPOINT,
+  region: process.env.S3_REGION || 'auto',
   forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
 }
 
@@ -14,7 +14,7 @@ let s3Client: S3Client | null = null
 function getClient(): S3Client {
   if (!s3Client) {
     if (!storageConfig.accessKeyId || !storageConfig.secretAccessKey || !storageConfig.endpoint) {
-      throw new Error('S3 storage not configured. Set BUCKET, ACCESS_KEY_ID, SECRET_ACCESS_KEY, ENDPOINT env vars.')
+      throw new Error('S3 storage not configured. Set S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_ENDPOINT env vars.')
     }
     s3Client = new S3Client({
       region: storageConfig.region,
