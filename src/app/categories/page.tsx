@@ -178,13 +178,14 @@ export default function CategoriesPage() {
           <table>
             <thead>
               <tr>
+                <th className='w-10'></th>
                 <th
                   className='cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('name')}
                 >
                   Slug <SortIcon field='name' />
                 </th>
-                <th>Description</th>
+                <th>Display Name</th>
                 <th>Classifications</th>
                 <th
                   className='cursor-pointer hover:text-foreground'
@@ -208,8 +209,21 @@ export default function CategoriesPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredCategories.map((category) => (
+              {filteredCategories.map((category) => {
+                const hasAvatar = !!category.avatar_image_key
+                const hasHeader = !!category.header_image_key
+                const imageStatus = hasAvatar && hasHeader ? 'complete' : hasAvatar || hasHeader ? 'partial' : 'none'
+                return (
                 <tr key={category.name}>
+                  <td className='w-10'>
+                    {imageStatus === 'complete' ? (
+                      <span className='text-success text-sm' title='Both images uploaded'>&#10003;</span>
+                    ) : imageStatus === 'partial' ? (
+                      <span className='text-warning text-sm' title={`Missing ${!hasAvatar ? 'avatar' : 'header'}`}>&#9888;</span>
+                    ) : (
+                      <span className='text-neutral text-sm' title='No images'>&#8212;</span>
+                    )}
+                  </td>
                   <td>
                     <Link
                       href={`/categories/${category.name}`}
@@ -219,7 +233,7 @@ export default function CategoriesPage() {
                     </Link>
                   </td>
                   <td className='text-neutral max-w-xs truncate'>
-                    {category.description || '—'}
+                    {category.display_name || '—'}
                   </td>
                   <td>
                     {category.classifications && category.classifications.length > 0 ? (
@@ -260,7 +274,8 @@ export default function CategoriesPage() {
                     </Link>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

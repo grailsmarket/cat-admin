@@ -1,139 +1,110 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
-import { createCategory, addNames, fetchCategories, type CreateCategoryResponse } from '@/api/categories'
+import { createCategory, addNames, fetchCategories } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import { VALID_CLASSIFICATIONS, CLASSIFICATION_LABELS, type Classification } from '@/constants/classifications'
-
-type SlugCheckResult = {
-  isLive: boolean
-  checks: { avatar: boolean; header: boolean }
-}
 
 export default function NewCategoryPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
 
   const [slug, setSlug] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [description, setDescription] = useState('')
   const [classifications, setClassifications] = useState<Classification[]>([])
   const [initialNames, setInitialNames] = useState('')
   const [error, setError] = useState('')
-  const [errorDetails, setErrorDetails] = useState<{ 
-    required?: string[]
-    checks?: { avatar: boolean; header: boolean }
-    checkUrls?: { avatar: string; header: string }
-  } | null>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
-  
-  // Live slug check state
-  const [slugCheck, setSlugCheck] = useState<SlugCheckResult | null>(null)
-  const [isCheckingSlug, setIsCheckingSlug] = useState(false)
-  
-  // Fetch existing categories to check for duplicates
+
+  // Image file state
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [headerFile, setHeaderFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [headerPreview, setHeaderPreview] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const headerInputRef = useRef<HTMLInputElement>(null)
+
   const { data: categoriesData } = useQuery({
     queryKey: ['categories'],
     queryFn: fetchCategories,
   })
-  
+
   const existingCategorySlugs = useMemo(() => {
     return new Set((categoriesData?.data || []).map(cat => cat.name.toLowerCase()))
   }, [categoriesData])
-  
+
   const isSlugDuplicate = slug.length > 0 && existingCategorySlugs.has(slug.toLowerCase())
-  
-  // Test mode: slug "test" bypasses grails lookups but prevents submission
-  const isTestMode = slug.toLowerCase() === 'test'
+  const isSlugFormatValid = slug.length >= 2 && /^[a-z0-9_]+$/.test(slug)
+  const isSlugValid = isSlugFormatValid && !isSlugDuplicate
 
-  // Debounced slug check
-  const checkSlug = useCallback(async (slugToCheck: string) => {
-    if (!slugToCheck || slugToCheck.length < 2) {
-      setSlugCheck(null)
+  const handleFileSelect = (type: 'avatar' | 'header', file: File | null) => {
+    if (!file) return
+
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setError(`${type === 'avatar' ? 'Avatar' : 'Header'}: Only JPEG and PNG files are allowed.`)
       return
     }
-    
-    const slugRegex = /^[a-z0-9_]+$/
-    if (!slugRegex.test(slugToCheck)) {
-      setSlugCheck(null)
+    if (file.size > 2 * 1024 * 1024) {
+      setError(`${type === 'avatar' ? 'Avatar' : 'Header'}: File must be 2 MB or less.`)
       return
     }
-    
-    // Test mode: simulate valid slug without API call
-    if (slugToCheck.toLowerCase() === 'test') {
-      setSlugCheck({
-        isLive: true,
-        checks: { avatar: true, header: true },
-      })
-      return
-    }
-    
-    setIsCheckingSlug(true)
-    try {
-      const response = await fetch(`/api/cats/check?slug=${encodeURIComponent(slugToCheck)}`, {
-        credentials: 'include',
-      })
-      const data = await response.json()
-      setSlugCheck({
-        isLive: data.isLive,
-        checks: data.checks,
-      })
-    } catch {
-      setSlugCheck(null)
-    } finally {
-      setIsCheckingSlug(false)
-    }
-  }, [])
 
-  // Debounce slug check (1 second)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      checkSlug(slug)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [slug, checkSlug])
+    setError('')
+    const previewUrl = URL.createObjectURL(file)
+    if (type === 'avatar') {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+      setAvatarFile(file)
+      setAvatarPreview(previewUrl)
+    } else {
+      if (headerPreview) URL.revokeObjectURL(headerPreview)
+      setHeaderFile(file)
+      setHeaderPreview(previewUrl)
+    }
+  }
 
-  // Derived state: is slug valid in grails and not a duplicate?
-  // In test mode, we allow form interaction but block submission
-  const isSlugValid = slugCheck?.isLive === true && !isSlugDuplicate
-  const canInteractWithForm = isSlugValid || isTestMode
+  const clearFile = (type: 'avatar' | 'header') => {
+    if (type === 'avatar') {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+      setAvatarFile(null)
+      setAvatarPreview(null)
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+    } else {
+      if (headerPreview) URL.revokeObjectURL(headerPreview)
+      setHeaderFile(null)
+      setHeaderPreview(null)
+      if (headerInputRef.current) headerInputRef.current.value = ''
+    }
+  }
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      // First create the category
-      const result = await createCategory(slug, description, classifications)
+      const result = await createCategory(slug, {
+        display_name: displayName || undefined,
+        description: description || undefined,
+        classifications: classifications.length > 0 ? classifications : undefined,
+        avatar: avatarFile || undefined,
+        header: headerFile || undefined,
+      })
       if (!result.success) {
-        const error = new Error(result.error || 'Failed to create category') as Error & {
-          details?: CreateCategoryResponse['details']
-        }
-        error.details = result.details
-        throw error
+        throw new Error(result.error || 'Failed to create category')
       }
 
-      // Then add initial names if provided (use normalized names)
       const validNames = parsedNames
         .filter(n => n.isValid && n.normalized)
         .map(n => n.normalized as string)
 
-      console.log('[create-category] Valid names to add:', validNames.length, validNames.slice(0, 5))
-
       if (validNames.length > 0) {
         try {
           const addResult = await addNames(slug, validNames)
-          console.log('[create-category] Add names result:', addResult)
           if (!addResult.success) {
-            // Category was created but members failed
-            return {
-              ...result,
-              memberError: addResult.error || 'Failed to add names',
-              invalidNames: addResult.invalidNames,
-            }
+            return { ...result, memberError: addResult.error || 'Failed to add names' }
           }
         } catch (addError) {
-          console.error('[create-category] Add names error:', addError)
           return {
             ...result,
             memberError: addError instanceof Error ? addError.message : 'Failed to add names',
@@ -146,48 +117,35 @@ export default function NewCategoryPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       if ('memberError' in result) {
-        // Navigate but with a warning
         router.push(`/categories/${slug}?warning=member_error`)
       } else {
         router.push(`/categories/${slug}`)
       }
     },
-    onError: (err: Error & { details?: { required?: string[]; checkUrl?: string } }) => {
+    onError: (err: Error) => {
       setError(err.message)
-      setErrorDetails(err.details || null)
     },
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setErrorDetails(null)
 
-    // Validate slug
     if (!slug) {
       setError('Slug is required')
       return
     }
 
-    const slugRegex = /^[a-z0-9_]+$/
-    if (!slugRegex.test(slug)) {
-      setError('Slug must be lowercase alphanumeric with underscores only (e.g., my_category)')
-      return
-    }
-    
-    // Block test mode from submitting
-    if (isTestMode) {
-      setError('Test mode: Cannot create a category with slug "test". Use a different slug to create a real category.')
+    if (!isSlugFormatValid) {
+      setError('Slug must be at least 2 characters, lowercase alphanumeric with underscores only')
       return
     }
 
-    // Check if slug is ready
-    if (!slugCheck?.isLive) {
-      setError('Category images not found in Grails frontend. Please add images first.')
+    if (isSlugDuplicate) {
+      setError('A category with this slug already exists')
       return
     }
 
-    // Show confirmation modal
     setShowConfirmModal(true)
   }
 
@@ -196,56 +154,45 @@ export default function NewCategoryPage() {
     createMutation.mutate()
   }
 
-  // Parse and validate ENS names (strict mode - must be already normalized)
   const parsedNames = useMemo(() => {
     const lines = initialNames.split('\n').map((n) => n.trim()).filter((n) => n.length > 0)
     return lines.map(name => {
-      // Check for invalid TLDs (only .eth or no TLD allowed)
       const dotIndex = name.lastIndexOf('.')
       if (dotIndex !== -1) {
         const tld = name.slice(dotIndex)
         if (tld !== '.eth') {
-          return {
-            original: name,
-            normalized: null,
-            isValid: false,
-            reason: `invalid TLD "${tld}" - only .eth is allowed`
-          }
+          return { original: name, normalized: null, isValid: false, reason: `invalid TLD "${tld}" - only .eth is allowed` }
         }
       }
-      
-      // Add .eth if missing
       const fullName = name.endsWith('.eth') ? name : `${name}.eth`
       const normalized = normalizeEnsName(fullName)
-      // Strict: name must equal its normalized form (no uppercase, etc.)
       const isValid = normalized !== null && normalized === fullName
       return {
         original: name,
         normalized,
         isValid,
-        reason: normalized === null 
-          ? 'invalid ENS name' 
-          : normalized !== fullName 
-            ? `must be lowercase: ${normalized.replace('.eth', '')}` 
-            : null
+        reason: normalized === null
+          ? 'invalid ENS name'
+          : normalized !== fullName
+            ? `must be lowercase: ${normalized.replace('.eth', '')}`
+            : null,
       }
     })
   }, [initialNames])
-  
+
   const nameCount = parsedNames.length
   const invalidNames = parsedNames.filter(n => !n.isValid)
   const hasInvalidNames = invalidNames.length > 0
 
   return (
     <div className='p-8'>
-      {/* Header */}
       <div className='mx-auto mb-8 max-w-2xl'>
         <h1 className='text-3xl font-bold'>Create New Category</h1>
         <p className='text-neutral mt-1'>Add a new category to organize ENS names.</p>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSubmit} className='mx-auto max-w-2xl'>
+        {/* Category Details */}
         <div className='card mb-6'>
           <h2 className='mb-6 text-lg font-semibold'>Category Details</h2>
 
@@ -254,67 +201,40 @@ export default function NewCategoryPage() {
             <label htmlFor='slug' className='mb-2 block text-sm font-medium'>
               Slug <span className='text-error'>*</span>
             </label>
-            <div className='relative'>
-              <input
-                id='slug'
-                type='text'
-                value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                placeholder='e.g., prepunks or 10k_club'
-                className='w-full pr-10'
-                disabled={createMutation.isPending}
-              />
-              {isCheckingSlug && (
-                <div className='absolute right-3 top-1/2 -translate-y-1/2'>
-                  <div className='h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent' />
-                </div>
-              )}
-            </div>
+            <input
+              id='slug'
+              type='text'
+              value={slug}
+              onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              placeholder='e.g., prepunks or 10k_club'
+              className='w-full'
+              disabled={createMutation.isPending}
+            />
             <p className='text-neutral mt-1 text-sm'>
               Lowercase letters, numbers, and underscores only. This cannot be changed later.
             </p>
-            
-            {/* Live status check */}
-            {slug.length >= 2 && !isCheckingSlug && slugCheck && (
-              <div className='mt-3 rounded-lg border p-3' style={{ 
-                borderColor: isTestMode ? 'var(--warning)' : isSlugValid ? 'var(--success)' : 'var(--error)',
-                backgroundColor: isTestMode ? 'rgba(234, 179, 8, 0.1)' : isSlugValid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)'
-              }}>
-                <div className='flex items-center gap-2 mb-2'>
-                  {isTestMode ? (
-                    <span className='text-warning font-medium'>🧪 Test Mode - UI only, cannot submit</span>
-                  ) : isSlugDuplicate ? (
-                    <span className='text-error font-medium'>✗ Category already exists</span>
-                  ) : slugCheck.isLive ? (
-                    <span className='text-success font-medium'>✓ Ready to create</span>
-                  ) : (
-                    <span className='text-error font-medium'>✗ Not set up in Grails</span>
-                  )}
-                </div>
-                {!isSlugDuplicate && !isTestMode && (
-                  <>
-                    <div className='flex gap-4 text-sm'>
-                      <span className={slugCheck.checks.avatar ? 'text-success' : 'text-error'}>
-                        {slugCheck.checks.avatar ? '✓' : '✗'} Avatar
-                      </span>
-                      <span className={slugCheck.checks.header ? 'text-success' : 'text-error'}>
-                        {slugCheck.checks.header ? '✓' : '✗'} Header
-                      </span>
-                    </div>
-                    {!slugCheck.isLive && (
-                      <p className='text-neutral text-xs mt-2'>
-                        Add images to grails-app/public/clubs/{slug}/ first
-                      </p>
-                    )}
-                  </>
-                )}
-                {isTestMode && (
-                  <p className='text-neutral text-xs mt-1'>
-                    Use this to test the form UI. Grails lookups are bypassed. Change slug to create a real category.
-                  </p>
-                )}
-              </div>
+            {slug.length >= 2 && isSlugDuplicate && (
+              <p className='text-error mt-2 text-sm font-medium'>A category with this slug already exists</p>
             )}
+          </div>
+
+          {/* Display Name */}
+          <div className='mb-6'>
+            <label htmlFor='displayName' className='mb-2 block text-sm font-medium'>
+              Display Name
+            </label>
+            <input
+              id='displayName'
+              type='text'
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder='e.g., 999 Club or PrePunks'
+              className='w-full'
+              disabled={createMutation.isPending}
+            />
+            <p className='text-neutral mt-1 text-sm'>
+              Human-readable name shown on grails.app. Leave blank to use the slug.
+            </p>
           </div>
 
           {/* Description */}
@@ -329,39 +249,32 @@ export default function NewCategoryPage() {
               placeholder='Brief description of this category...'
               rows={3}
               className='w-full resize-none'
-              disabled={createMutation.isPending || !canInteractWithForm}
+              disabled={createMutation.isPending}
             />
           </div>
 
           {/* Classifications */}
           <div>
-            <label className='mb-2 block text-sm font-medium'>
-              Classifications
-            </label>
+            <label className='mb-2 block text-sm font-medium'>Classifications</label>
             <p className='text-neutral mb-3 text-sm'>
               Select meta-categories this category belongs to. Used for filtering on grails.app.
             </p>
             <div className='flex flex-wrap gap-2'>
               {VALID_CLASSIFICATIONS.map((classification) => {
                 const isSelected = classifications.includes(classification)
-                const isDisabled = createMutation.isPending || !canInteractWithForm
                 return (
                   <label
                     key={classification}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all select-none ${
-                      isDisabled
-                        ? 'cursor-not-allowed opacity-50'
-                        : 'cursor-pointer'
-                    } ${
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all select-none ${
                       isSelected
                         ? 'border-primary bg-primary/10 text-primary'
-                        : `border-border ${!isDisabled && 'hover:border-primary/50 hover:bg-surface-2'}`
+                        : 'border-border hover:border-primary/50 hover:bg-surface-2'
                     }`}
                   >
                     <input
                       type='checkbox'
                       checked={isSelected}
-                      disabled={isDisabled}
+                      disabled={createMutation.isPending}
                       onChange={() => {
                         if (isSelected) {
                           setClassifications(classifications.filter((c) => c !== classification))
@@ -393,6 +306,92 @@ export default function NewCategoryPage() {
           </div>
         </div>
 
+        {/* Images */}
+        <div className='card mb-6'>
+          <h2 className='mb-2 text-lg font-semibold'>Images</h2>
+          <p className='text-neutral mb-6 text-sm'>
+            Upload avatar and header images. JPEG or PNG, max 2 MB each. You can also add them later.
+          </p>
+
+          <div className='grid grid-cols-2 gap-6'>
+            {/* Avatar */}
+            <div>
+              <label className='mb-2 block text-sm font-medium'>Avatar</label>
+              {avatarPreview ? (
+                <div className='relative'>
+                  <img
+                    src={avatarPreview}
+                    alt='Avatar preview'
+                    className='h-32 w-32 rounded-lg border border-border object-cover'
+                  />
+                  <button
+                    type='button'
+                    onClick={() => clearFile('avatar')}
+                    className='absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-error text-white text-xs hover:bg-error/80'
+                  >
+                    <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={3}>
+                      <path strokeLinecap='round' strokeLinejoin='round' d='M6 18L18 6M6 6l12 12' />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <label className='flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-surface-2 transition-colors'>
+                  <svg className='h-8 w-8 text-neutral mb-1' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1.5} d='M12 4v16m8-8H4' />
+                  </svg>
+                  <span className='text-neutral text-xs'>Upload</span>
+                  <input
+                    ref={avatarInputRef}
+                    type='file'
+                    accept='image/jpeg,image/png'
+                    onChange={(e) => handleFileSelect('avatar', e.target.files?.[0] || null)}
+                    className='sr-only'
+                    disabled={createMutation.isPending}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Header */}
+            <div>
+              <label className='mb-2 block text-sm font-medium'>Header</label>
+              {headerPreview ? (
+                <div className='relative'>
+                  <img
+                    src={headerPreview}
+                    alt='Header preview'
+                    className='h-32 w-full rounded-lg border border-border object-cover'
+                  />
+                  <button
+                    type='button'
+                    onClick={() => clearFile('header')}
+                    className='absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-error text-white text-xs hover:bg-error/80'
+                  >
+                    <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={3}>
+                      <path strokeLinecap='round' strokeLinejoin='round' d='M6 18L18 6M6 6l12 12' />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <label className='flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-surface-2 transition-colors'>
+                  <svg className='h-8 w-8 text-neutral mb-1' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1.5} d='M12 4v16m8-8H4' />
+                  </svg>
+                  <span className='text-neutral text-xs'>Upload</span>
+                  <input
+                    ref={headerInputRef}
+                    type='file'
+                    accept='image/jpeg,image/png'
+                    onChange={(e) => handleFileSelect('header', e.target.files?.[0] || null)}
+                    className='sr-only'
+                    disabled={createMutation.isPending}
+                  />
+                </label>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Initial Names */}
         <div className='card mb-6'>
           <h2 className='mb-2 text-lg font-semibold'>Initial Names</h2>
@@ -400,7 +399,6 @@ export default function NewCategoryPage() {
             Optionally add ENS names to this category. You can also add them later.
           </p>
 
-          {/* CSV Upload */}
           <div className='mb-4'>
             <label className='mb-2 block text-sm font-medium'>Upload CSV</label>
             <div className='flex items-center gap-3'>
@@ -414,20 +412,19 @@ export default function NewCategoryPage() {
                   reader.onload = (event) => {
                     const content = event.target?.result as string
                     if (content) {
-                      // Parse CSV: handle comma-separated, newline-separated, or single column
                       const names = content
                         .split(/[\n,]/)
-                        .map(n => n.trim().replace(/^["']|["']$/g, '')) // Remove quotes
-                        .filter(n => n.length > 0 && !n.toLowerCase().includes('name')) // Skip headers
+                        .map(n => n.trim().replace(/^["']|["']$/g, ''))
+                        .filter(n => n.length > 0 && !n.toLowerCase().includes('name'))
                       const newNames = names.join('\n')
                       setInitialNames(prev => prev ? `${prev}\n${newNames}` : newNames)
                     }
                   }
                   reader.readAsText(file)
-                  e.target.value = '' // Reset to allow re-upload
+                  e.target.value = ''
                 }}
                 className='text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-primary/80 file:cursor-pointer'
-                disabled={createMutation.isPending || !canInteractWithForm}
+                disabled={createMutation.isPending}
               />
               <span className='text-neutral text-xs'>CSV or TXT with one name per line or comma-separated</span>
             </div>
@@ -460,7 +457,7 @@ export default function NewCategoryPage() {
               placeholder={'vitalik.eth\nnick.eth\nbrantly.eth'}
               rows={8}
               className={`w-full font-mono text-sm ${hasInvalidNames ? 'border-error' : ''}`}
-              disabled={createMutation.isPending || !canInteractWithForm}
+              disabled={createMutation.isPending}
             />
             <p className='text-neutral mt-1 text-sm'>
               Enter one ENS name per line. The .eth suffix is optional.
@@ -485,95 +482,50 @@ export default function NewCategoryPage() {
         {error && (
           <div className='bg-error/10 border-error mb-6 rounded-lg border p-4'>
             <p className='text-error font-medium'>{error}</p>
-            {errorDetails?.required && (
-              <div className='mt-3'>
-                {errorDetails.checks && (
-                  <div className='mb-3 text-sm'>
-                    <p className='text-neutral mb-1'>Image checks:</p>
-                    <div className='flex gap-4'>
-                      <span className={errorDetails.checks.avatar ? 'text-success' : 'text-error'}>
-                        {errorDetails.checks.avatar ? '✓' : '✗'} Avatar
-                      </span>
-                      <span className={errorDetails.checks.header ? 'text-success' : 'text-error'}>
-                        {errorDetails.checks.header ? '✓' : '✗'} Header
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <p className='text-neutral text-sm mb-2'>Required in grails-app:</p>
-                <ul className='text-sm text-neutral list-disc list-inside space-y-1'>
-                  {errorDetails.required.map((item, idx) => (
-                    <li key={idx} className='font-mono text-xs'>{item}</li>
-                  ))}
-                </ul>
-                {errorDetails.checkUrls && (
-                  <div className='text-neutral text-xs mt-3 space-y-1'>
-                    <p>
-                      Avatar:{' '}
-                      <a href={errorDetails.checkUrls.avatar} target='_blank' rel='noopener noreferrer' className='text-primary hover:underline'>
-                        {errorDetails.checkUrls.avatar}
-                      </a>
-                    </p>
-                    <p>
-                      Header:{' '}
-                      <a href={errorDetails.checkUrls.header} target='_blank' rel='noopener noreferrer' className='text-primary hover:underline'>
-                        {errorDetails.checkUrls.header}
-                      </a>
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
         {/* Actions */}
-        <div className='flex flex-col gap-3'>
-          {isTestMode && (
-            <p className='text-warning text-sm'>🧪 Test mode active - form submission is disabled</p>
-          )}
-          {!isSlugValid && !isTestMode && (
-            <p className='text-error text-sm'>Enter a valid slug to create a new category</p>
-          )}
-          <div className='flex items-center gap-4'>
-            <button 
-              type='submit' 
-              className='btn btn-primary' 
-              disabled={createMutation.isPending || !isSlugValid || hasInvalidNames || isTestMode}
-            >
-              {createMutation.isPending ? (
-                <>
-                  <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
-                  Creating...
-                </>
-              ) : (
-                'Create Category'
-              )}
-            </button>
+        <div className='flex items-center gap-4'>
+          <button
+            type='submit'
+            className='btn btn-primary'
+            disabled={createMutation.isPending || !isSlugValid || hasInvalidNames}
+          >
+            {createMutation.isPending ? (
+              <>
+                <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
+                Creating...
+              </>
+            ) : (
+              'Create Category'
+            )}
+          </button>
           <Link href='/categories' className='btn btn-secondary'>
             Cancel
           </Link>
         </div>
-        </div>
       </form>
 
-      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
         onConfirm={handleConfirmCreate}
-        title="⚠️ Create New Category"
+        title="Create New Category"
         message={
           <div className="space-y-3">
             <p className="text-lg font-semibold text-warning">
-              Are you absolutely sure you want to create this category?
+              Are you sure you want to create this category?
             </p>
             <div className="bg-surface-2 rounded-lg p-3 space-y-1">
               <p><strong>Slug:</strong> <span className="font-mono">{slug}</span></p>
+              {displayName && <p><strong>Display Name:</strong> {displayName}</p>}
               {description && <p><strong>Description:</strong> {description}</p>}
               {classifications.length > 0 && (
                 <p><strong>Classifications:</strong> {classifications.map((c) => CLASSIFICATION_LABELS[c]).join(', ')}</p>
               )}
+              {avatarFile && <p><strong>Avatar:</strong> {avatarFile.name}</p>}
+              {headerFile && <p><strong>Header:</strong> {headerFile.name}</p>}
               {nameCount > 0 && <p><strong>Initial names:</strong> {nameCount}</p>}
             </div>
             <p className="text-error font-medium">
@@ -587,4 +539,3 @@ export default function NewCategoryPage() {
     </div>
   )
 }
-

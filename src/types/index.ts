@@ -2,9 +2,14 @@ import type { Address } from 'viem'
 
 export type Category = {
   name: string
+  display_name: string | null
   description: string | null
   name_count: number
   classifications: string[]
+  avatar_image_key: string | null
+  header_image_key: string | null
+  avatar_url: string | null
+  header_url: string | null
   created_at: string
   updated_at: string
 }

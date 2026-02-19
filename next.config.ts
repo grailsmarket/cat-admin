@@ -10,11 +10,15 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: '*.grails.app',
+      },
+      {
+        protocol: 'https',
         hostname: '*.ethid.org',
       },
       {
         protocol: 'https',
-        hostname: 'euc.li', // ENS avatar service
+        hostname: 'euc.li',
       },
       {
         protocol: 'https',
@@ -54,7 +58,7 @@ const nextConfig: NextConfig = {
               "default-src 'self' blob:",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' https://grails.app https://*.ethid.org https://euc.li https://metadata.ens.domains https://i.seadn.io https://ipfs.io https://*.ipfs.io data: blob:",
+              "img-src 'self' https://grails.app https://*.grails.app https://*.ethid.org https://euc.li https://metadata.ens.domains https://i.seadn.io https://ipfs.io https://*.ipfs.io data: blob:",
               "font-src 'self'",
               // connect-src is permissive for blockchain APIs (ethereum-identity-kit, wagmi, etc.)
               "connect-src 'self' https: wss: blob:",
