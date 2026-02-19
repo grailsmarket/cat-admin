@@ -2,7 +2,7 @@
 
 import { useState, use, useMemo, useRef } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
+import { toast } from 'sonner'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, uploadCategoryImage, type InvalidNameEntry } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
@@ -32,8 +32,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [nameSearch, setNameSearch] = useState('')
   const [nameSortField, setNameSortField] = useState<NameSortField>('ens_name')
   const [nameSortDirection, setNameSortDirection] = useState<SortDirection>('asc')
-  const [error, setError] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
   
   // Invalid names scan state
   const [isScanning, setIsScanning] = useState(false)
@@ -45,13 +43,15 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   // Image upload state
   const [imageUploading, setImageUploading] = useState<'avatar' | 'header' | null>(null)
+  const [stagedImage, setStagedImage] = useState<{ type: 'avatar' | 'header'; file: File; previewUrl: string } | null>(null)
+  const [imageCacheBuster, setImageCacheBuster] = useState(0)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const headerInputRef = useRef<HTMLInputElement>(null)
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
-    type: 'add' | 'remove' | 'description'
+    type: 'add' | 'remove' | 'description' | 'upload-image'
     names: string[]
   }>({ isOpen: false, type: 'add', names: [] })
 
@@ -70,9 +70,9 @@ export default function CategoryDetailPage({ params }: PageProps) {
       queryClient.invalidateQueries({ queryKey: ['category', name] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       setIsEditing(false)
-      showSuccess('Category updated successfully')
+      toast.success('Category updated successfully')
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   // Add names mutation
@@ -84,16 +84,16 @@ export default function CategoryDetailPage({ params }: PageProps) {
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setNewNames('')
         setShowAddForm(false)
-        showSuccess(`Added ${result.added} name(s)${result.skipped ? `, skipped ${result.skipped} existing` : ''}`)
+        toast.success(`Added ${result.added} name(s)${result.skipped ? `, skipped ${result.skipped} existing` : ''}`)
       } else {
         if (result.invalidNames && result.invalidNames.length > 0) {
-          setError(`Invalid ENS names: ${result.invalidNames.slice(0, 5).join(', ')}${result.invalidNames.length > 5 ? ` and ${result.invalidNames.length - 5} more` : ''}`)
+          toast.error(`Invalid ENS names: ${result.invalidNames.slice(0, 5).join(', ')}${result.invalidNames.length > 5 ? ` and ${result.invalidNames.length - 5} more` : ''}`)
         } else {
-          setError(result.error || 'Failed to add names')
+          toast.error(result.error || 'Failed to add names')
         }
       }
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   // Remove names mutation
@@ -104,7 +104,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
         queryClient.invalidateQueries({ queryKey: ['category', name] })
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setSelectedNames(new Set())
-        showSuccess(`Removed ${result.removed} name(s)`)
+        toast.success(`Removed ${result.removed} name(s)`)
         
         // Update scan results to remove the deleted names
         if (scanResults) {
@@ -122,47 +122,61 @@ export default function CategoryDetailPage({ params }: PageProps) {
           }
         }
       } else {
-        setError(result.error || 'Failed to remove names')
+        toast.error(result.error || 'Failed to remove names')
       }
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
-  const showSuccess = (message: string) => {
-    setSuccessMessage(message)
-    setTimeout(() => setSuccessMessage(''), 3000)
-  }
 
-  const handleImageUpload = async (type: 'avatar' | 'header', file: File) => {
+  const handleImageSelect = (type: 'avatar' | 'header', file: File) => {
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setError(`Only JPEG and PNG files are allowed.`)
+      toast.error('Only JPEG and PNG files are allowed.')
       return
     }
     if (file.size > 2 * 1024 * 1024) {
-      setError(`File must be 2 MB or less.`)
+      toast.error('File must be 2 MB or less.')
       return
     }
 
+    if (stagedImage?.previewUrl) URL.revokeObjectURL(stagedImage.previewUrl)
+    const previewUrl = URL.createObjectURL(file)
+    setStagedImage({ type, file, previewUrl })
+    setConfirmModal({ isOpen: true, type: 'upload-image', names: [] })
+  }
+
+  const handleImageUploadConfirm = async () => {
+    if (!stagedImage) return
+    setConfirmModal({ isOpen: false, type: 'add', names: [] })
+
+    const { type, file } = stagedImage
     setImageUploading(type)
-    setError('')
     try {
       const result = await uploadCategoryImage(name, type, file)
       if (result.success) {
         queryClient.invalidateQueries({ queryKey: ['category', name] })
-        showSuccess(`${type === 'avatar' ? 'Avatar' : 'Header'} image uploaded successfully`)
+        setImageCacheBuster(prev => prev + 1)
+        toast.success(`${type === 'avatar' ? 'Avatar' : 'Header'} image uploaded successfully`)
       } else {
-        setError(result.error || `Failed to upload ${type} image`)
+        toast.error(result.error || `Failed to upload ${type} image`)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to upload ${type} image`)
+      toast.error(err instanceof Error ? err.message : `Failed to upload ${type} image`)
     } finally {
       setImageUploading(null)
+      if (stagedImage?.previewUrl) URL.revokeObjectURL(stagedImage.previewUrl)
+      setStagedImage(null)
     }
+  }
+
+  const handleImageUploadCancel = () => {
+    if (stagedImage?.previewUrl) URL.revokeObjectURL(stagedImage.previewUrl)
+    setStagedImage(null)
+    setConfirmModal({ isOpen: false, type: 'add', names: [] })
   }
 
   const handleScanInvalidNames = async () => {
     setIsScanning(true)
-    setError('')
     try {
       const result = await scanInvalidNames(name)
       setScanResults({
@@ -171,10 +185,10 @@ export default function CategoryDetailPage({ params }: PageProps) {
       })
       setShowScanResults(true)
       if (result.invalidCount === 0) {
-        showSuccess(`Scanned ${result.totalScanned.toLocaleString()} names - no invalid names found!`)
+        toast.success(`Scanned ${result.totalScanned.toLocaleString()} names - no invalid names found!`)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scan for invalid names')
+      toast.error(err instanceof Error ? err.message : 'Failed to scan for invalid names')
     } finally {
       setIsScanning(false)
     }
@@ -220,7 +234,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
     )
     setEditClassifications(currentClassifications)
     setIsEditing(true)
-    setError('')
   }
 
   const handleCancelEdit = () => {
@@ -235,15 +248,13 @@ export default function CategoryDetailPage({ params }: PageProps) {
   }
 
   const handleAddNames = () => {
-    setError('')
-
     if (parsedNames.length === 0) {
-      setError('Please enter at least one ENS name')
+      toast.error('Please enter at least one ENS name')
       return
     }
 
     if (hasInvalidInputNames) {
-      setError('Please fix invalid names before adding')
+      toast.error('Please fix invalid names before adding')
       return
     }
 
@@ -258,8 +269,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   const handleRemoveSelected = () => {
     if (selectedNames.size === 0) return
-    setError('')
-    // Show confirmation modal
     setConfirmModal({ isOpen: true, type: 'remove', names: Array.from(selectedNames) })
   }
 
@@ -276,6 +285,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
       updateMutation.mutate(undefined, {
         onSettled: () => setConfirmModal({ isOpen: false, type: 'description', names: [] }),
       })
+    } else if (confirmModal.type === 'upload-image') {
+      handleImageUploadConfirm()
     }
   }
 
@@ -445,27 +456,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   return (
     <div className='p-8'>
-      {/* Success message */}
-      {successMessage && (
-        <div className='bg-success/10 border-success mb-6 rounded-lg border p-4'>
-          <p className='text-success'>{successMessage}</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className='bg-error/10 border-error mb-6 rounded-lg border p-4'>
-          <div className='flex items-start justify-between'>
-            <p className='text-error'>{error}</p>
-            <button onClick={() => setError('')} className='text-error hover:text-error/70'>
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
         {/* Left column - Category details */}
         <div className='lg:col-span-1 space-y-6'>
@@ -639,7 +629,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
                       accept='image/jpeg,image/png'
                       onChange={(e) => {
                         const file = e.target.files?.[0]
-                        if (file) handleImageUpload('avatar', file)
+                        if (file) handleImageSelect('avatar', file)
                         if (avatarInputRef.current) avatarInputRef.current.value = ''
                       }}
                       className='sr-only'
@@ -652,11 +642,9 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
                   </div>
                 ) : category.avatar_url ? (
-                  <Image
-                    src={category.avatar_url}
+                  <img
+                    src={`${category.avatar_url}&v=${imageCacheBuster}`}
                     alt={`${category.name} avatar`}
-                    width={96}
-                    height={96}
                     className='h-24 w-24 rounded-lg border border-border object-cover'
                   />
                 ) : (
@@ -678,7 +666,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
                       accept='image/jpeg,image/png'
                       onChange={(e) => {
                         const file = e.target.files?.[0]
-                        if (file) handleImageUpload('header', file)
+                        if (file) handleImageSelect('header', file)
                         if (headerInputRef.current) headerInputRef.current.value = ''
                       }}
                       className='sr-only'
@@ -691,11 +679,9 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
                   </div>
                 ) : category.header_url ? (
-                  <Image
-                    src={category.header_url}
+                  <img
+                    src={`${category.header_url}&v=${imageCacheBuster}`}
                     alt={`${category.name} header`}
-                    width={800}
-                    height={200}
                     className='w-full rounded-lg border border-border'
                   />
                 ) : (
@@ -1011,28 +997,48 @@ export default function CategoryDetailPage({ params }: PageProps) {
       {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, type: 'add', names: [] })}
+        onClose={confirmModal.type === 'upload-image' ? handleImageUploadCancel : () => setConfirmModal({ isOpen: false, type: 'add', names: [] })}
         onConfirm={handleConfirmAction}
         title={
           confirmModal.type === 'add'
             ? 'Add Names to Category'
             : confirmModal.type === 'remove'
               ? 'Remove Names from Category'
-              : 'Update Category'
+              : confirmModal.type === 'upload-image'
+                ? `Upload ${stagedImage?.type === 'avatar' ? 'Avatar' : 'Header'} Image`
+                : 'Update Category'
         }
         message={
           confirmModal.type === 'add'
             ? `Are you sure you want to add ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} to "${name}"?`
             : confirmModal.type === 'remove'
               ? `Are you sure you want to remove ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} from "${name}"? This action cannot be undone.`
-              : `Are you sure you want to update "${name}"?`
+              : confirmModal.type === 'upload-image' && stagedImage
+                ? (
+                  <div className='space-y-3'>
+                    <p>Upload this image as the <strong>{stagedImage.type}</strong> for &quot;{name}&quot;?</p>
+                    <div className='rounded-lg border border-border overflow-hidden'>
+                      <img
+                        src={stagedImage.previewUrl}
+                        alt='Preview'
+                        className={stagedImage.type === 'avatar' ? 'h-32 w-32 object-cover mx-auto' : 'w-full'}
+                      />
+                    </div>
+                    <p className='text-neutral text-sm'>
+                      {stagedImage.file.name} ({(stagedImage.file.size / 1024).toFixed(0)} KB)
+                    </p>
+                  </div>
+                )
+                : `Are you sure you want to update "${name}"?`
         }
         confirmText={
           confirmModal.type === 'add'
             ? 'Add Names'
             : confirmModal.type === 'remove'
               ? 'Remove Names'
-              : 'Update'
+              : confirmModal.type === 'upload-image'
+                ? 'Upload'
+                : 'Update'
         }
         variant={confirmModal.type === 'remove' ? 'danger' : 'default'}
         isLoading={addNamesMutation.isPending || removeNamesMutation.isPending || updateMutation.isPending}

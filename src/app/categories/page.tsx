@@ -178,7 +178,7 @@ export default function CategoriesPage() {
           <table>
             <thead>
               <tr>
-                <th className='w-10'></th>
+                <th className='w-16'>Images</th>
                 <th
                   className='cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('name')}
@@ -215,13 +215,13 @@ export default function CategoriesPage() {
                 const imageStatus = hasAvatar && hasHeader ? 'complete' : hasAvatar || hasHeader ? 'partial' : 'none'
                 return (
                 <tr key={category.name}>
-                  <td className='w-10'>
+                  <td className='w-16'>
                     {imageStatus === 'complete' ? (
-                      <span className='text-success text-sm' title='Both images uploaded'>&#10003;</span>
+                      <span className='inline-block h-2.5 w-2.5 rounded-full bg-success' title='Avatar and header uploaded' />
                     ) : imageStatus === 'partial' ? (
-                      <span className='text-warning text-sm' title={`Missing ${!hasAvatar ? 'avatar' : 'header'}`}>&#9888;</span>
+                      <span className='inline-block h-2.5 w-2.5 rounded-full bg-warning' title={`Missing ${!hasAvatar ? 'avatar' : 'header'}`} />
                     ) : (
-                      <span className='text-neutral text-sm' title='No images'>&#8212;</span>
+                      <span className='inline-block h-2.5 w-2.5 rounded-full bg-neutral/30' title='No images' />
                     )}
                   </td>
                   <td>

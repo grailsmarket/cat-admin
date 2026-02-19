@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { createCategory, addNames, fetchCategories } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
@@ -18,7 +19,6 @@ export default function NewCategoryPage() {
   const [description, setDescription] = useState('')
   const [classifications, setClassifications] = useState<Classification[]>([])
   const [initialNames, setInitialNames] = useState('')
-  const [error, setError] = useState('')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   // Image file state
@@ -46,15 +46,13 @@ export default function NewCategoryPage() {
     if (!file) return
 
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setError(`${type === 'avatar' ? 'Avatar' : 'Header'}: Only JPEG and PNG files are allowed.`)
+      toast.error(`${type === 'avatar' ? 'Avatar' : 'Header'}: Only JPEG and PNG files are allowed.`)
       return
     }
     if (file.size > 2 * 1024 * 1024) {
-      setError(`${type === 'avatar' ? 'Avatar' : 'Header'}: File must be 2 MB or less.`)
+      toast.error(`${type === 'avatar' ? 'Avatar' : 'Header'}: File must be 2 MB or less.`)
       return
     }
-
-    setError('')
     const previewUrl = URL.createObjectURL(file)
     if (type === 'avatar') {
       if (avatarPreview) URL.revokeObjectURL(avatarPreview)
@@ -123,26 +121,25 @@ export default function NewCategoryPage() {
       }
     },
     onError: (err: Error) => {
-      setError(err.message)
+      toast.error(err.message)
     },
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
 
     if (!slug) {
-      setError('Slug is required')
+      toast.error('Slug is required')
       return
     }
 
     if (!isSlugFormatValid) {
-      setError('Slug must be at least 2 characters, lowercase alphanumeric with underscores only')
+      toast.error('Slug must be at least 2 characters, lowercase alphanumeric with underscores only')
       return
     }
 
     if (isSlugDuplicate) {
-      setError('A category with this slug already exists')
+      toast.error('A category with this slug already exists')
       return
     }
 
@@ -477,13 +474,6 @@ export default function NewCategoryPage() {
             )}
           </div>
         </div>
-
-        {/* Error */}
-        {error && (
-          <div className='bg-error/10 border-error mb-6 rounded-lg border p-4'>
-            <p className='text-error font-medium'>{error}</p>
-          </div>
-        )}
 
         {/* Actions */}
         <div className='flex items-center gap-4'>

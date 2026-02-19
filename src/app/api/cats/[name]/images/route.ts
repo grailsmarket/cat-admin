@@ -2,13 +2,49 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
-import { uploadFile, deleteFile, validateImageFile, getExtensionFromMime, isStorageEnabled } from '@/lib/storage'
+import { uploadFile, deleteFile, getFile, validateImageFile, getExtensionFromMime, isStorageEnabled } from '@/lib/storage'
 
 type RouteParams = {
   params: Promise<{ name: string }>
 }
 
-const GRAILS_API_URL = process.env.GRAILS_API_URL || 'https://api.grails.app/api/v1'
+
+
+// GET /api/cats/[name]/images?type=avatar|header — serve image directly from S3
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { name } = await params
+    const type = request.nextUrl.searchParams.get('type')
+    if (!type || !['avatar', 'header'].includes(type)) {
+      return NextResponse.json({ error: 'type must be "avatar" or "header"' }, { status: 400 })
+    }
+
+    const keyColumn = type === 'avatar' ? 'avatar_image_key' : 'header_image_key'
+    const [category] = await query<{ [key: string]: string | null }>(
+      `SELECT ${keyColumn} FROM clubs WHERE name = $1`,
+      [name]
+    )
+    const imageKey = category?.[keyColumn]
+    if (!imageKey) {
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 })
+    }
+
+    const file = await getFile(imageKey)
+    if (!file) {
+      return NextResponse.json({ error: 'Image not found in storage' }, { status: 404 })
+    }
+
+    return new Response(file.body, {
+      headers: {
+        'Content-Type': file.contentType,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
+    })
+  } catch (error) {
+    console.error('Get image error:', error)
+    return NextResponse.json({ error: 'Failed to retrieve image' }, { status: 500 })
+  }
+}
 
 // POST /api/cats/[name]/images - Upload or replace an image
 export async function POST(request: NextRequest, { params }: RouteParams) {
@@ -90,9 +126,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       data: {
         [`${type}_image_key`]: newKey,
         avatar_url: (type === 'avatar' ? newKey : category.avatar_image_key)
-          ? `${GRAILS_API_URL}/clubs/${name}/avatar` : null,
+          ? `/api/cats/${name}/images?type=avatar` : null,
         header_url: (type === 'header' ? newKey : category.header_image_key)
-          ? `${GRAILS_API_URL}/clubs/${name}/header` : null,
+          ? `/api/cats/${name}/images?type=header` : null,
       },
     })
   } catch (error) {

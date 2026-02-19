@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, use } from 'react'
+import { toast } from 'sonner'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { fetchEnsName, removeCategoriesFromName } from '@/api/names'
@@ -18,8 +19,6 @@ export default function NameDetailPage({ params }: PageProps) {
   const decodedName = decodeURIComponent(name)
   const queryClient = useQueryClient()
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState('')
   const [showMarketDetails, setShowMarketDetails] = useState(false)
@@ -51,9 +50,9 @@ export default function NameDetailPage({ params }: PageProps) {
       queryClient.invalidateQueries({ queryKey: ['ens-name', decodedName] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       setSelectedCategories(new Set())
-      showSuccess(`Removed ${data.removed} category membership(s)`)
+      toast.success(`Removed ${data.removed} category membership(s)`)
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const addMutation = useMutation({
@@ -64,25 +63,21 @@ export default function NameDetailPage({ params }: PageProps) {
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setShowAddForm(false)
         setSelectedCategoryToAdd('')
-        showSuccess(`Added to category "${selectedCategoryToAdd}"`)
+        toast.success(`Added to category "${selectedCategoryToAdd}"`)
       } else {
-        setError(result.error || 'Failed to add to category')
+        toast.error(result.error || 'Failed to add to category')
       }
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const handleAddToCategory = () => {
     if (!selectedCategoryToAdd) return
-    setError(null)
-    // Show confirmation modal
     setConfirmModal({ isOpen: true, type: 'add', categoryName: selectedCategoryToAdd })
   }
 
   const handleRemoveSelected = () => {
     if (selectedCategories.size === 0) return
-    setError(null)
-    // Show confirmation modal
     setConfirmModal({ isOpen: true, type: 'remove', categories: Array.from(selectedCategories) })
   }
 
@@ -96,11 +91,6 @@ export default function NameDetailPage({ params }: PageProps) {
         onSettled: () => setConfirmModal({ isOpen: false, type: 'remove' }),
       })
     }
-  }
-
-  const showSuccess = (message: string) => {
-    setSuccessMessage(message)
-    setTimeout(() => setSuccessMessage(null), 3000)
   }
 
   const toggleCategory = (categoryName: string) => {
@@ -201,27 +191,6 @@ export default function NameDetailPage({ params }: PageProps) {
                 You can remove it from categories below.
               </p>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Success message */}
-      {successMessage && (
-        <div className='bg-success/10 border-success mb-6 rounded-lg border p-4'>
-          <p className='text-success'>{successMessage}</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className='bg-error/10 border-error mb-6 rounded-lg border p-4'>
-          <div className='flex items-start justify-between'>
-            <p className='text-error'>{error}</p>
-            <button onClick={() => setError(null)} className='text-error hover:text-error/70'>
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
-              </svg>
-            </button>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 
 const storageConfig = {
   bucket: process.env.BUCKET,
@@ -53,6 +53,26 @@ export async function deleteFile(key: string): Promise<void> {
       Key: key,
     })
   )
+}
+
+export async function getFile(key: string): Promise<{ body: ReadableStream; contentType: string } | null> {
+  const client = getClient()
+  try {
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: storageConfig.bucket,
+        Key: key,
+      })
+    )
+    if (!response.Body) return null
+    return {
+      body: response.Body.transformToWebStream(),
+      contentType: response.ContentType || 'application/octet-stream',
+    }
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'NoSuchKey') return null
+    throw err
+  }
 }
 
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png'])

@@ -6,7 +6,7 @@ import { validateClassifications } from '@/constants/classifications'
 import { uploadFile, validateImageFile, getExtensionFromMime, isStorageEnabled } from '@/lib/storage'
 import type { Category } from '@/types'
 
-const GRAILS_API_URL = process.env.GRAILS_API_URL || 'https://api.grails.app/api/v1'
+
 
 // GET /api/cats - List all categories (direct DB)
 export async function GET() {
@@ -40,8 +40,8 @@ export async function GET() {
 
     const data = categories.map(cat => ({
       ...cat,
-      avatar_url: cat.avatar_image_key ? `${GRAILS_API_URL}/clubs/${cat.name}/avatar` : null,
-      header_url: cat.header_image_key ? `${GRAILS_API_URL}/clubs/${cat.name}/header` : null,
+      avatar_url: cat.avatar_image_key ? `/api/cats/${cat.name}/images?type=avatar` : null,
+      header_url: cat.header_image_key ? `/api/cats/${cat.name}/images?type=header` : null,
     }))
 
     return NextResponse.json({ success: true, data })
@@ -181,8 +181,8 @@ export async function POST(request: NextRequest) {
       ...created,
       avatar_image_key: avatarKey || created.avatar_image_key,
       header_image_key: headerKey || created.header_image_key,
-      avatar_url: avatarKey ? `${GRAILS_API_URL}/clubs/${name}/avatar` : null,
-      header_url: headerKey ? `${GRAILS_API_URL}/clubs/${name}/header` : null,
+      avatar_url: avatarKey ? `/api/cats/${name}/images?type=avatar` : null,
+      header_url: headerKey ? `/api/cats/${name}/images?type=header` : null,
     }
 
     console.log(`[cats] Created category: ${name} by ${address}`)

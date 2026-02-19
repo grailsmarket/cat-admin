@@ -5,7 +5,7 @@ import { verifyAdmin } from '@/lib/auth'
 import { validateClassifications } from '@/constants/classifications'
 import type { Category } from '@/types'
 
-const GRAILS_API_URL = process.env.GRAILS_API_URL || 'https://api.grails.app/api/v1'
+
 
 type RouteParams = {
   params: Promise<{ name: string }>
@@ -75,8 +75,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         classifications: category.classifications || [],
         avatar_image_key: category.avatar_image_key,
         header_image_key: category.header_image_key,
-        avatar_url: category.avatar_image_key ? `${GRAILS_API_URL}/clubs/${category.name}/avatar` : null,
-        header_url: category.header_image_key ? `${GRAILS_API_URL}/clubs/${category.name}/header` : null,
+        avatar_url: category.avatar_image_key ? `/api/cats/${category.name}/images?type=avatar` : null,
+        header_url: category.header_image_key ? `/api/cats/${category.name}/images?type=header` : null,
         created_at: category.created_at,
         updated_at: category.updated_at,
         names: names.map((n) => ({
@@ -186,8 +186,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const responseData = {
       ...updated,
-      avatar_url: updated.avatar_image_key ? `${GRAILS_API_URL}/clubs/${name}/avatar` : null,
-      header_url: updated.header_image_key ? `${GRAILS_API_URL}/clubs/${name}/header` : null,
+      avatar_url: updated.avatar_image_key ? `/api/cats/${name}/images?type=avatar` : null,
+      header_url: updated.header_image_key ? `/api/cats/${name}/images?type=header` : null,
     }
 
     return NextResponse.json({ success: true, data: responseData })
