@@ -439,7 +439,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <div className='flex items-center justify-center p-8'>
+      <div className='flex items-center justify-center p-4 lg:p-8'>
         <div className='border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent' />
       </div>
     )
@@ -447,7 +447,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   if (fetchError || !category) {
     return (
-      <div className='p-8'>
+      <div className='p-4 lg:p-8'>
         <Link href='/categories' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>
           <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
             <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
@@ -463,7 +463,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
   }
 
   return (
-    <div className='p-8'>
+    <div className='p-4 lg:p-8'>
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
         {/* Left column - Category details */}
         <div className='lg:col-span-1 space-y-6'>
@@ -981,7 +981,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
                 {/* Pagination */}
                 {category.pagination && category.pagination.totalPages > 1 && (
-                  <div className='mt-4 flex items-center justify-between'>
+                  <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                     <p className='text-neutral text-sm'>
                       Showing {(page - 1) * 50 + 1}-{Math.min(page * 50, category.pagination.totalNames)} of{' '}
                       {category.pagination.totalNames.toLocaleString()}

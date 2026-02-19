@@ -32,7 +32,7 @@ export default function NamesPage() {
   }
 
   return (
-    <div className='p-8'>
+    <div className='p-4 lg:p-8'>
       {/* Header */}
       <div className='mx-auto mb-8 max-w-xl'>
         <h1 className='text-3xl font-bold'>Name Lookup</h1>

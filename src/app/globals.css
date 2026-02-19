@@ -235,3 +235,22 @@ tr:hover {
   padding: 24px;
 }
 
+@media (max-width: 639px) {
+  .card {
+    padding: 16px;
+  }
+
+  th {
+    padding: 8px 12px;
+  }
+
+  td {
+    padding: 12px;
+  }
+
+  .btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+

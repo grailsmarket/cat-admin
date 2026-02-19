@@ -8,7 +8,12 @@ import { useUserContext } from '@/context/user'
 import { useEnsName, useEnsAvatar } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 
-export default function Sidebar() {
+type SidebarProps = {
+  mobileOpen?: boolean
+  onMobileClose?: () => void
+}
+
+export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { userAddress, handleSignOut } = useUserContext()
@@ -36,11 +41,14 @@ export default function Sidebar() {
         : `${quickSearch.trim()}.eth`
       router.push(`/names/${encodeURIComponent(name)}`)
       setQuickSearch('')
+      onMobileClose?.()
     }
   }
 
+  const closeMobile = () => onMobileClose?.()
+
   return (
-    <aside className='bg-secondary border-border sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r'>
+    <aside className={`bg-secondary border-border flex h-screen w-64 shrink-0 flex-col border-r fixed z-50 top-0 left-0 transition-transform duration-200 lg:sticky lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       {/* Logo */}
       <div className='border-border border-b p-6'>
         <div className='flex items-center gap-3'>
@@ -53,10 +61,20 @@ export default function Sidebar() {
             priority
             unoptimized
           />
-          <div>
+          <div className='flex-1 min-w-0'>
             <h1 className='text-xl font-bold'>Cat Admin</h1>
             <p className='text-neutral text-sm'>Grails Category Management</p>
           </div>
+          {/* Mobile close button */}
+          <button
+            onClick={onMobileClose}
+            className='rounded-lg p-1 text-neutral hover:text-foreground lg:hidden'
+            aria-label='Close menu'
+          >
+            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -77,6 +95,7 @@ export default function Sidebar() {
           <li>
             <Link
               href='/'
+              onClick={closeMobile}
               className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
                 pathname === '/'
                   ? 'bg-primary/10 text-primary'
@@ -116,6 +135,7 @@ export default function Sidebar() {
             {/* Sub-nav: View Categories */}
             <Link
               href='/categories'
+              onClick={closeMobile}
               className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
                 pathname === '/categories'
                   ? 'text-primary font-medium'
@@ -135,6 +155,7 @@ export default function Sidebar() {
             {/* Sub-nav: New Category */}
             <Link
               href='/categories/new'
+              onClick={closeMobile}
               className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
                 pathname === '/categories/new'
                   ? 'text-primary font-medium'
@@ -155,6 +176,7 @@ export default function Sidebar() {
           <li>
             <Link
               href='/names'
+              onClick={closeMobile}
               className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
                 isActive('/names')
                   ? 'bg-primary/10 text-primary'
@@ -178,6 +200,7 @@ export default function Sidebar() {
         <div className='mt-auto pt-4'>
           <Link
             href='/activity'
+            onClick={closeMobile}
             className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
               isActive('/activity')
                 ? 'bg-primary/10 text-primary'

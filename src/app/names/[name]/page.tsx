@@ -125,7 +125,7 @@ export default function NameDetailPage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <div className='flex items-center justify-center p-8'>
+      <div className='flex items-center justify-center p-4 lg:p-8'>
         <div className='border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent' />
       </div>
     )
@@ -133,7 +133,7 @@ export default function NameDetailPage({ params }: PageProps) {
 
   if (fetchError || !ensName) {
     return (
-      <div className='p-8'>
+      <div className='p-4 lg:p-8'>
         <Link href='/names' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>
           <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
             <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
@@ -156,7 +156,7 @@ export default function NameDetailPage({ params }: PageProps) {
   const activeListing = hasListing ? listings[0] : null
 
   return (
-    <div className='p-8'>
+    <div className='p-4 lg:p-8'>
       {/* Header */}
       <div className='mb-8'>
         <Link href='/names' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>

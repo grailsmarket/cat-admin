@@ -189,7 +189,7 @@ export default function NewCategoryPage() {
   const hasInvalidNames = invalidNames.length > 0
 
   return (
-    <div className='p-8'>
+    <div className='p-4 lg:p-8'>
       <div className='mx-auto mb-8 max-w-2xl'>
         <h1 className='text-3xl font-bold'>Create New Category</h1>
         <p className='text-neutral mt-1'>Add a new category to organize ENS names.</p>
@@ -317,7 +317,7 @@ export default function NewCategoryPage() {
             Upload avatar and header images. JPEG or PNG, max 2 MB each. You can also add them later.
           </p>
 
-          <div className='grid grid-cols-2 gap-6'>
+          <div className='grid grid-cols-1 gap-6 sm:grid-cols-2'>
             {/* Avatar */}
             <div>
               <label className='mb-2 block text-sm font-medium'>Avatar</label>
