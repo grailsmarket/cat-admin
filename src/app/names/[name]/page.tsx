@@ -19,6 +19,7 @@ export default function NameDetailPage({ params }: PageProps) {
   const decodedName = decodeURIComponent(name)
   const queryClient = useQueryClient()
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+  const [isSelectMode, setIsSelectMode] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState('')
   const [showMarketDetails, setShowMarketDetails] = useState(false)
@@ -50,6 +51,7 @@ export default function NameDetailPage({ params }: PageProps) {
       queryClient.invalidateQueries({ queryKey: ['ens-name', decodedName] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       setSelectedCategories(new Set())
+      setIsSelectMode(false)
       toast.success(`Removed ${data.removed} category membership(s)`)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -374,13 +376,7 @@ export default function NameDetailPage({ params }: PageProps) {
             <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
               <h2 className='text-lg font-semibold'>Category Memberships</h2>
               <div className='flex items-center gap-2'>
-                <button
-                  onClick={() => setShowAddForm(!showAddForm)}
-                  className='btn btn-primary text-sm'
-                >
-                  {showAddForm ? 'Cancel' : 'Add to Category'}
-                </button>
-                {clubs.length > 0 && selectedCategories.size > 0 && (
+                {isSelectMode && selectedCategories.size > 0 && (
                   <button
                     onClick={handleRemoveSelected}
                     disabled={removeMutation.isPending}
@@ -391,6 +387,23 @@ export default function NameDetailPage({ params }: PageProps) {
                       : `Remove Selected (${selectedCategories.size})`}
                   </button>
                 )}
+                {clubs.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setIsSelectMode(!isSelectMode)
+                      if (isSelectMode) setSelectedCategories(new Set())
+                    }}
+                    className={`btn text-sm ${isSelectMode ? 'btn-secondary !border-primary !text-primary' : 'btn-secondary'}`}
+                  >
+                    {isSelectMode ? 'Done' : 'Select'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className='btn btn-primary text-sm'
+                >
+                  {showAddForm ? 'Cancel' : 'Add to Category'}
+                </button>
               </div>
             </div>
 
@@ -455,7 +468,7 @@ export default function NameDetailPage({ params }: PageProps) {
                 <table className='min-w-full'>
                   <thead className='bg-secondary sticky top-0'>
                     <tr>
-                      <th className='w-10'></th>
+                      {isSelectMode && <th className='w-10'></th>}
                       <th>Category</th>
                     </tr>
                   </thead>
@@ -463,21 +476,26 @@ export default function NameDetailPage({ params }: PageProps) {
                     {clubs.map((categoryName) => (
                       <tr
                         key={categoryName}
-                        className={`cursor-pointer transition-colors hover:bg-tertiary ${selectedCategories.has(categoryName) ? 'bg-primary/5' : ''}`}
+                        className={`cursor-pointer transition-colors hover:bg-tertiary ${isSelectMode && selectedCategories.has(categoryName) ? 'bg-primary/5' : ''}`}
                         onClick={(e) => {
-                          // Don't navigate if clicking on checkbox
                           if ((e.target as HTMLElement).tagName === 'INPUT') return
-                          window.location.href = `/categories/${encodeURIComponent(categoryName)}`
+                          if (isSelectMode) {
+                            toggleCategory(categoryName)
+                          } else {
+                            window.location.href = `/categories/${encodeURIComponent(categoryName)}`
+                          }
                         }}
                       >
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type='checkbox'
-                            checked={selectedCategories.has(categoryName)}
-                            onChange={() => toggleCategory(categoryName)}
-                            className='rounded'
-                          />
-                        </td>
+                        {isSelectMode && (
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type='checkbox'
+                              checked={selectedCategories.has(categoryName)}
+                              onChange={() => toggleCategory(categoryName)}
+                              className='rounded'
+                            />
+                          </td>
+                        )}
                         <td>
                           <span className='font-medium text-primary'>{categoryName}</span>
                         </td>

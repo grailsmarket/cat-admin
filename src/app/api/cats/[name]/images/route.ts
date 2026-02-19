@@ -10,9 +10,15 @@ type RouteParams = {
 
 
 
-// GET /api/cats/[name]/images?type=avatar|header — serve image directly from S3
+// GET /api/cats/[name]/images?type=avatar|header — serve image directly from S3.
+// Intentionally unauthenticated: club images are public assets (avatars/headers displayed on grails.app).
+// Cache invalidation is handled client-side via &v=N query param after uploads.
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    if (!isStorageEnabled()) {
+      return NextResponse.json({ error: 'S3 storage not configured' }, { status: 503 })
+    }
+
     const { name } = await params
     const type = request.nextUrl.searchParams.get('type')
     if (!type || !['avatar', 'header'].includes(type)) {
@@ -34,12 +40,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Image not found in storage' }, { status: 404 })
     }
 
-    return new Response(file.body, {
-      headers: {
-        'Content-Type': file.contentType,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
-    })
+    const headers: Record<string, string> = {
+      'Content-Type': file.contentType,
+      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+    }
+    if (file.contentLength) {
+      headers['Content-Length'] = String(file.contentLength)
+    }
+
+    return new Response(file.body, { headers })
   } catch (error) {
     console.error('Get image error:', error)
     return NextResponse.json({ error: 'Failed to retrieve image' }, { status: 500 })

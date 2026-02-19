@@ -55,7 +55,7 @@ export async function deleteFile(key: string): Promise<void> {
   )
 }
 
-export async function getFile(key: string): Promise<{ body: ReadableStream; contentType: string } | null> {
+export async function getFile(key: string): Promise<{ body: ReadableStream; contentType: string; contentLength?: number } | null> {
   const client = getClient()
   try {
     const response = await client.send(
@@ -68,6 +68,7 @@ export async function getFile(key: string): Promise<{ body: ReadableStream; cont
     return {
       body: response.Body.transformToWebStream(),
       contentType: response.ContentType || 'application/octet-stream',
+      contentLength: response.ContentLength,
     }
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'NoSuchKey') return null

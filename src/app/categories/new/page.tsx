@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -28,6 +28,13 @@ export default function NewCategoryPage() {
   const [headerPreview, setHeaderPreview] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const headerInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+      if (headerPreview) URL.revokeObjectURL(headerPreview)
+    }
+  }, [avatarPreview, headerPreview])
 
   const { data: categoriesData } = useQuery({
     queryKey: ['categories'],
@@ -215,7 +222,7 @@ export default function NewCategoryPage() {
             )}
           </div>
 
-          {/* Display Name */}
+          {/* Display Name — hidden until DB migration runs
           <div className='mb-6'>
             <label htmlFor='displayName' className='mb-2 block text-sm font-medium'>
               Display Name
@@ -232,7 +239,7 @@ export default function NewCategoryPage() {
             <p className='text-neutral mt-1 text-sm'>
               Human-readable name shown on grails.app. Leave blank to use the slug.
             </p>
-          </div>
+          </div> */}
 
           {/* Description */}
           <div className='mb-6'>
@@ -509,7 +516,7 @@ export default function NewCategoryPage() {
             </p>
             <div className="bg-surface-2 rounded-lg p-3 space-y-1">
               <p><strong>Slug:</strong> <span className="font-mono">{slug}</span></p>
-              {displayName && <p><strong>Display Name:</strong> {displayName}</p>}
+              {/* displayName && <p><strong>Display Name:</strong> {displayName}</p> */}
               {description && <p><strong>Description:</strong> {description}</p>}
               {classifications.length > 0 && (
                 <p><strong>Classifications:</strong> {classifications.map((c) => CLASSIFICATION_LABELS[c]).join(', ')}</p>

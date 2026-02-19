@@ -2,6 +2,8 @@
  * Check if a category's images are accessible via the grails backend API.
  *
  * This is an informational check — NOT a gate for category creation.
+ * It verifies the grails API is serving the images (separate from S3 storage).
+ * Cat-admin uploads directly to S3; this checks the grails API's serving layer.
  */
 export type GrailsCheckResult = {
   isLive: boolean
@@ -11,7 +13,7 @@ export type GrailsCheckResult = {
   }
 }
 
-const GRAILS_API_URL = process.env.GRAILS_API_URL || 'https://api.grails.app/api/v1'
+const GRAILS_API_URL = process.env.GRAILS_API_URL || 'https://grails-api.ethid.org/api/v1'
 
 export async function checkCategoryInGrails(categorySlug: string): Promise<GrailsCheckResult> {
   const checkUrl = async (url: string): Promise<boolean> => {

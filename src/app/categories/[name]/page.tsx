@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, use, useMemo, useRef } from 'react'
+import { useState, useEffect, use, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
@@ -24,11 +24,11 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [page, setPage] = useState(1)
   const [isEditing, setIsEditing] = useState(false)
   const [description, setDescription] = useState('')
-  const [editDisplayName, setEditDisplayName] = useState('')
   const [editClassifications, setEditClassifications] = useState<Classification[]>([])
   const [newNames, setNewNames] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set())
+  const [isSelectMode, setIsSelectMode] = useState(false)
   const [nameSearch, setNameSearch] = useState('')
   const [nameSortField, setNameSortField] = useState<NameSortField>('ens_name')
   const [nameSortDirection, setNameSortDirection] = useState<SortDirection>('asc')
@@ -48,6 +48,12 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const headerInputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    return () => {
+      if (stagedImage?.previewUrl) URL.revokeObjectURL(stagedImage.previewUrl)
+    }
+  }, [stagedImage?.previewUrl])
+
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
@@ -65,7 +71,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   // Update category mutation
   const updateMutation = useMutation({
-    mutationFn: () => updateCategory(name, { description, display_name: editDisplayName, classifications: editClassifications }),
+    mutationFn: () => updateCategory(name, { description, classifications: editClassifications }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['category', name] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
@@ -104,6 +110,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
         queryClient.invalidateQueries({ queryKey: ['category', name] })
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setSelectedNames(new Set())
+        setIsSelectMode(false)
         toast.success(`Removed ${result.removed} name(s)`)
         
         // Update scan results to remove the deleted names
@@ -228,7 +235,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   const handleStartEdit = () => {
     setDescription(category?.description || '')
-    setEditDisplayName(category?.display_name || '')
     const currentClassifications = (category?.classifications || []).filter(
       (c): c is Classification => VALID_CLASSIFICATIONS.includes(c as Classification)
     )
@@ -239,7 +245,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const handleCancelEdit = () => {
     setIsEditing(false)
     setDescription('')
-    setEditDisplayName('')
     setEditClassifications([])
   }
 
@@ -462,27 +467,14 @@ export default function CategoryDetailPage({ params }: PageProps) {
           {/* Category header + Details */}
           <div className='card'>
             {/* Header */}
-            <h1 className='text-2xl font-bold'>{category.display_name || category.name}</h1>
-            {category.display_name && (
-              <p className='text-neutral text-sm font-mono'>{category.name}</p>
-            )}
+            <h1 className='text-2xl font-bold'>{category.name}</h1>
 
             {/* Divider */}
             <div className='border-border my-4 border-t' />
 
-            {/* Description, Display Name & Classifications */}
+            {/* Description & Classifications */}
             {isEditing ? (
               <div className='space-y-4'>
-                <div>
-                  <label className='mb-2 block text-sm font-medium'>Display Name</label>
-                  <input
-                    type='text'
-                    value={editDisplayName}
-                    onChange={(e) => setEditDisplayName(e.target.value)}
-                    className='w-full'
-                    placeholder='Human-readable name...'
-                  />
-                </div>
                 <div>
                   <label className='mb-2 block text-sm font-medium'>Description</label>
                   <textarea
@@ -553,15 +545,11 @@ export default function CategoryDetailPage({ params }: PageProps) {
               <div className='space-y-4'>
                 <div>
                   <div className='flex items-center justify-between'>
-                    <p className='text-neutral text-sm'>Display Name</p>
+                    <p className='text-neutral text-sm'>Description</p>
                     <button onClick={handleStartEdit} className='text-primary hover:underline text-sm'>
                       Edit
                     </button>
                   </div>
-                  <p className='mt-1'>{category.display_name || <span className='text-neutral italic'>Same as slug</span>}</p>
-                </div>
-                <div>
-                  <p className='text-neutral text-sm'>Description</p>
                   <p className='mt-1'>{category.description || <span className='text-neutral italic'>No description</span>}</p>
                 </div>
                 
@@ -707,13 +695,24 @@ export default function CategoryDetailPage({ params }: PageProps) {
             <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
               <h2 className='text-lg font-semibold'>Names</h2>
               <div className='flex items-center gap-2'>
-                {selectedNames.size > 0 && (
+                {isSelectMode && selectedNames.size > 0 && (
                   <button
                     onClick={handleRemoveSelected}
                     className='btn btn-danger text-sm'
                     disabled={removeNamesMutation.isPending}
                   >
                     {removeNamesMutation.isPending ? 'Removing...' : `Remove ${selectedNames.size} Selected`}
+                  </button>
+                )}
+                {category.names && category.names.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setIsSelectMode(!isSelectMode)
+                      if (isSelectMode) setSelectedNames(new Set())
+                    }}
+                    className={`btn text-sm ${isSelectMode ? 'btn-secondary !border-primary !text-primary' : 'btn-secondary'}`}
+                  >
+                    {isSelectMode ? 'Done' : 'Select'}
                   </button>
                 )}
                 <button
@@ -910,14 +909,16 @@ export default function CategoryDetailPage({ params }: PageProps) {
                   <table className='min-w-full'>
                     <thead className='bg-secondary sticky top-0'>
                       <tr>
-                        <th className='w-10'>
-                          <input
-                            type='checkbox'
-                            checked={selectedNames.size === category.names?.length && category.names.length > 0}
-                            onChange={toggleAllNames}
-                            className='rounded'
-                          />
-                        </th>
+                        {isSelectMode && (
+                          <th className='w-10'>
+                            <input
+                              type='checkbox'
+                              checked={selectedNames.size === category.names?.length && category.names.length > 0}
+                              onChange={toggleAllNames}
+                              className='rounded'
+                            />
+                          </th>
+                        )}
                         <th 
                           className='cursor-pointer hover:text-foreground'
                           onClick={() => handleNameSort('ens_name')}
@@ -934,15 +935,17 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     </thead>
                     <tbody>
                       {filteredNames.map((entry) => (
-                        <tr key={entry.ens_name} className={selectedNames.has(entry.ens_name) ? 'bg-primary/5' : ''}>
-                          <td>
-                            <input
-                              type='checkbox'
-                              checked={selectedNames.has(entry.ens_name)}
-                              onChange={() => toggleName(entry.ens_name)}
-                              className='rounded'
-                            />
-                          </td>
+                        <tr key={entry.ens_name} className={isSelectMode && selectedNames.has(entry.ens_name) ? 'bg-primary/5' : ''}>
+                          {isSelectMode && (
+                            <td>
+                              <input
+                                type='checkbox'
+                                checked={selectedNames.has(entry.ens_name)}
+                                onChange={() => toggleName(entry.ens_name)}
+                                className='rounded'
+                              />
+                            </td>
+                          )}
                           <td className='font-mono'>
                             <Link href={`/names/${entry.ens_name}`} className='text-primary hover:underline'>
                               {entry.ens_name}

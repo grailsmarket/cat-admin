@@ -36,7 +36,7 @@ export async function GET() {
       FROM clubs
       ORDER BY name ASC
     `)
-    // TODO: add display_name to SELECT once ALTER TABLE migration runs
+    // TODO(display_name_migration): add display_name to SELECT once ALTER TABLE runs — see PLAN_image_management.md
 
     const data = categories.map(cat => ({
       ...cat,
@@ -85,7 +85,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
-    const rawClassifications = classificationsJson ? JSON.parse(classificationsJson) : []
+    let rawClassifications: unknown = []
+    if (classificationsJson) {
+      try {
+        rawClassifications = JSON.parse(classificationsJson)
+      } catch {
+        return NextResponse.json({ error: 'Invalid classifications JSON' }, { status: 400 })
+      }
+    }
     const classifications = Array.isArray(rawClassifications)
       ? validateClassifications(rawClassifications)
       : []
@@ -133,7 +140,7 @@ export async function POST(request: NextRequest) {
           COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications,
           avatar_image_key, header_image_key, created_at, updated_at
       `, [name, description || null, classifications.length > 0 ? classifications : null])
-      // TODO: add display_name to INSERT once ALTER TABLE migration runs
+      // TODO(display_name_migration): add display_name to INSERT once ALTER TABLE runs — see PLAN_image_management.md
       return result.rows[0] as Category
     })
 

@@ -169,13 +169,3 @@ export async function uploadCategoryImage(
   return response.json()
 }
 
-export async function deleteCategoryImage(
-  categoryName: string,
-  type: 'avatar' | 'header'
-): Promise<ApiResponse<null>> {
-  const response = await fetch(`/api/cats/${categoryName}/images?type=${type}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  })
-  return response.json()
-}
