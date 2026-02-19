@@ -24,6 +24,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [page, setPage] = useState(1)
   const [isEditing, setIsEditing] = useState(false)
   const [description, setDescription] = useState('')
+  const [editDisplayName, setEditDisplayName] = useState('')
   const [editClassifications, setEditClassifications] = useState<Classification[]>([])
   const [newNames, setNewNames] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
@@ -71,7 +72,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   // Update category mutation
   const updateMutation = useMutation({
-    mutationFn: () => updateCategory(name, { description, classifications: editClassifications }),
+    mutationFn: () => updateCategory(name, { description, display_name: editDisplayName, classifications: editClassifications }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['category', name] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
@@ -235,6 +236,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   const handleStartEdit = () => {
     setDescription(category?.description || '')
+    setEditDisplayName(category?.display_name || '')
     const currentClassifications = (category?.classifications || []).filter(
       (c): c is Classification => VALID_CLASSIFICATIONS.includes(c as Classification)
     )
@@ -245,6 +247,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const handleCancelEdit = () => {
     setIsEditing(false)
     setDescription('')
+    setEditDisplayName('')
     setEditClassifications([])
   }
 
@@ -467,14 +470,27 @@ export default function CategoryDetailPage({ params }: PageProps) {
           {/* Category header + Details */}
           <div className='card'>
             {/* Header */}
-            <h1 className='text-2xl font-bold'>{category.name}</h1>
+            <h1 className='text-2xl font-bold'>{category.display_name || category.name}</h1>
+            {category.display_name && (
+              <p className='text-neutral text-sm font-mono'>{category.name}</p>
+            )}
 
             {/* Divider */}
             <div className='border-border my-4 border-t' />
 
-            {/* Description & Classifications */}
+            {/* Display Name, Description & Classifications */}
             {isEditing ? (
               <div className='space-y-4'>
+                <div>
+                  <label className='mb-2 block text-sm font-medium'>Display Name</label>
+                  <input
+                    type='text'
+                    value={editDisplayName}
+                    onChange={(e) => setEditDisplayName(e.target.value)}
+                    className='w-full'
+                    placeholder='Human-readable name...'
+                  />
+                </div>
                 <div>
                   <label className='mb-2 block text-sm font-medium'>Description</label>
                   <textarea
@@ -545,11 +561,15 @@ export default function CategoryDetailPage({ params }: PageProps) {
               <div className='space-y-4'>
                 <div>
                   <div className='flex items-center justify-between'>
-                    <p className='text-neutral text-sm'>Description</p>
+                    <p className='text-neutral text-sm'>Display Name</p>
                     <button onClick={handleStartEdit} className='text-primary hover:underline text-sm'>
                       Edit
                     </button>
                   </div>
+                  <p className='mt-1'>{category.display_name || <span className='text-neutral italic'>Same as slug</span>}</p>
+                </div>
+                <div>
+                  <p className='text-neutral text-sm'>Description</p>
                   <p className='mt-1'>{category.description || <span className='text-neutral italic'>No description</span>}</p>
                 </div>
                 

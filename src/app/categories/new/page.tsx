@@ -222,7 +222,7 @@ export default function NewCategoryPage() {
             )}
           </div>
 
-          {/* Display Name — hidden until DB migration runs
+          {/* Display Name */}
           <div className='mb-6'>
             <label htmlFor='displayName' className='mb-2 block text-sm font-medium'>
               Display Name
@@ -239,7 +239,7 @@ export default function NewCategoryPage() {
             <p className='text-neutral mt-1 text-sm'>
               Human-readable name shown on grails.app. Leave blank to use the slug.
             </p>
-          </div> */}
+          </div>
 
           {/* Description */}
           <div className='mb-6'>
@@ -516,7 +516,7 @@ export default function NewCategoryPage() {
             </p>
             <div className="bg-surface-2 rounded-lg p-3 space-y-1">
               <p><strong>Slug:</strong> <span className="font-mono">{slug}</span></p>
-              {/* displayName && <p><strong>Display Name:</strong> {displayName}</p> */}
+              {displayName && <p><strong>Display Name:</strong> {displayName}</p>}
               {description && <p><strong>Description:</strong> {description}</p>}
               {classifications.length > 0 && (
                 <p><strong>Classifications:</strong> {classifications.map((c) => CLASSIFICATION_LABELS[c]).join(', ')}</p>

@@ -26,6 +26,7 @@ export async function GET() {
     const categories = await query<Category>(`
       SELECT 
         name,
+        display_name,
         description, 
         member_count AS name_count,
         COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications,
@@ -36,7 +37,6 @@ export async function GET() {
       FROM clubs
       ORDER BY name ASC
     `)
-    // TODO(display_name_migration): add display_name to SELECT once ALTER TABLE runs — see PLAN_image_management.md
 
     const data = categories.map(cat => ({
       ...cat,
@@ -134,13 +134,12 @@ export async function POST(request: NextRequest) {
     // Create category
     const created = await withActorTransaction(address, async (client) => {
       const result = await client.query(`
-        INSERT INTO clubs (name, description, classifications, member_count, created_at, updated_at)
-        VALUES ($1, $2, $3, 0, NOW(), NOW())
-        RETURNING name, description, member_count AS name_count,
+        INSERT INTO clubs (name, display_name, description, classifications, member_count, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 0, NOW(), NOW())
+        RETURNING name, display_name, description, member_count AS name_count,
           COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications,
           avatar_image_key, header_image_key, created_at, updated_at
-      `, [name, description || null, classifications.length > 0 ? classifications : null])
-      // TODO(display_name_migration): add display_name to INSERT once ALTER TABLE runs — see PLAN_image_management.md
+      `, [name, displayName || null, description || null, classifications.length > 0 ? classifications : null])
       return result.rows[0] as Category
     })
 

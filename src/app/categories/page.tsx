@@ -185,7 +185,7 @@ export default function CategoriesPage() {
                 >
                   Slug <SortIcon field='name' />
                 </th>
-                {/* <th>Display Name</th> — hidden until DB migration */}
+                <th>Display Name</th>
                 <th>Classifications</th>
                 <th
                   className='cursor-pointer hover:text-foreground'
@@ -232,7 +232,7 @@ export default function CategoriesPage() {
                       {category.name}
                     </Link>
                   </td>
-                  {/* <td>{category.display_name || '—'}</td> — hidden until DB migration */}
+                  <td className='text-neutral max-w-xs truncate'>{category.display_name || '—'}</td>
                   <td>
                     {category.classifications && category.classifications.length > 0 ? (
                       <div className='flex flex-wrap gap-1'>
