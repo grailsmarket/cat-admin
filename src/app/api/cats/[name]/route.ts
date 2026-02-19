@@ -5,6 +5,8 @@ import { verifyAdmin } from '@/lib/auth'
 import { validateClassifications } from '@/constants/classifications'
 import type { Category } from '@/types'
 
+
+
 type RouteParams = {
   params: Promise<{ name: string }>
 }
@@ -38,9 +40,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const limit = Math.min(Math.max(1, requestedLimit), MAX_LIMIT)
     const offset = (page - 1) * limit
 
-    // Get category details
     const [category] = await query<Category>(`
-      SELECT name, description, member_count AS name_count, COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications, created_at, updated_at
+      SELECT name, display_name, description, member_count AS name_count,
+        COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications,
+        avatar_image_key, header_image_key, created_at, updated_at
       FROM clubs
       WHERE name = $1
     `, [name])
@@ -65,9 +68,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       success: true,
       data: {
         name: category.name,
+        display_name: category.display_name || null,
         description: category.description,
         name_count: nameCount,
         classifications: category.classifications || [],
+        avatar_image_key: category.avatar_image_key,
+        header_image_key: category.header_image_key,
+        avatar_url: category.avatar_image_key ? `/api/cats/${category.name}/images?type=avatar` : null,
+        header_url: category.header_image_key ? `/api/cats/${category.name}/images?type=header` : null,
         created_at: category.created_at,
         updated_at: category.updated_at,
         names: names.map((n) => ({
@@ -112,16 +120,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json()
-    const { description, classifications: rawClassifications } = body
+    const { description, display_name: displayName, classifications: rawClassifications } = body
 
-    // Limit description length
     if (description && description.length > 500) {
-      return NextResponse.json({ 
-        error: 'Description must be 500 characters or less' 
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Description must be 500 characters or less' }, { status: 400 })
     }
 
-    // Validate classifications if provided
+    if (displayName && displayName.length > 100) {
+      return NextResponse.json({ error: 'Display name must be 100 characters or less' }, { status: 400 })
+    }
+
     const classifications = rawClassifications !== undefined
       ? (Array.isArray(rawClassifications) ? validateClassifications(rawClassifications) : [])
       : undefined
@@ -142,14 +150,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       const values: (string | string[] | null)[] = [name]
       let paramIndex = 2
 
-      // Always update description if provided (even to null)
       if (description !== undefined) {
         setClauses.push(`description = $${paramIndex}`)
         values.push(description || null)
         paramIndex++
       }
 
-      // Update classifications if provided
+      if (displayName !== undefined) {
+        setClauses.push(`display_name = $${paramIndex}`)
+        values.push(displayName || null)
+        paramIndex++
+      }
+
       if (classifications !== undefined) {
         setClauses.push(`classifications = $${paramIndex}`)
         values.push(classifications.length > 0 ? classifications : null)
@@ -160,14 +172,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         UPDATE clubs
         SET ${setClauses.join(', ')}
         WHERE name = $1
-        RETURNING name, description, member_count AS name_count, COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications, created_at, updated_at
+        RETURNING name, display_name, description, member_count AS name_count,
+          COALESCE(classifications, ARRAY[]::TEXT[]) AS classifications,
+          avatar_image_key, header_image_key, created_at, updated_at
       `, values)
       return result.rows[0] as Category
     })
 
     console.log(`[cats] Updated category: ${name} by ${address}`)
 
-    return NextResponse.json({ success: true, data: updated })
+    const responseData = {
+      ...updated,
+      avatar_url: updated.avatar_image_key ? `/api/cats/${name}/images?type=avatar` : null,
+      header_url: updated.header_image_key ? `/api/cats/${name}/images?type=header` : null,
+    }
+
+    return NextResponse.json({ success: true, data: responseData })
   } catch (error) {
     console.error('Update category error:', error)
     

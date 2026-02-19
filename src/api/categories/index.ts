@@ -10,7 +10,6 @@ export type CategoryWithNames = Category & {
   }
 }
 
-// List all categories
 export async function fetchCategories(): Promise<ApiResponse<Category[]>> {
   const response = await fetch('/api/cats', {
     credentials: 'include',
@@ -18,7 +17,6 @@ export async function fetchCategories(): Promise<ApiResponse<Category[]>> {
   return response.json()
 }
 
-// Get single category with names
 export async function fetchCategory(
   name: string,
   page = 1,
@@ -30,36 +28,42 @@ export async function fetchCategory(
   return response.json()
 }
 
-// Create category response with potential details
-export type CreateCategoryResponse = ApiResponse<Category> & {
-  details?: {
-    required?: string[]
-    checkUrl?: string
-  }
-}
+export type CreateCategoryResponse = ApiResponse<Category>
 
-// Create category
 export async function createCategory(
   name: string,
-  description?: string,
-  classifications?: string[]
+  options: {
+    display_name?: string
+    description?: string
+    classifications?: string[]
+    avatar?: File
+    header?: File
+  }
 ): Promise<CreateCategoryResponse> {
+  const formData = new FormData()
+  formData.append('name', name)
+  if (options.display_name) formData.append('display_name', options.display_name)
+  if (options.description) formData.append('description', options.description)
+  if (options.classifications?.length) {
+    formData.append('classifications', JSON.stringify(options.classifications))
+  }
+  if (options.avatar) formData.append('avatar', options.avatar)
+  if (options.header) formData.append('header', options.header)
+
   const response = await fetch('/api/cats', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ name, description, classifications }),
+    body: formData,
   })
   return response.json()
 }
 
-// Update category options
 export interface UpdateCategoryOptions {
   description?: string
+  display_name?: string
   classifications?: string[]
 }
 
-// Update category
 export async function updateCategory(
   name: string,
   options: UpdateCategoryOptions
@@ -73,7 +77,6 @@ export async function updateCategory(
   return response.json()
 }
 
-// Add names to category
 export type AddNamesResponse = {
   success: boolean
   message?: string
@@ -96,7 +99,6 @@ export async function addNames(
   return response.json()
 }
 
-// Remove names from category
 export type RemoveNamesResponse = {
   success: boolean
   message?: string
@@ -117,7 +119,6 @@ export async function removeNames(
   return response.json()
 }
 
-// Invalid name scan result
 export interface InvalidNameEntry {
   name: string
   reason: string
@@ -133,7 +134,6 @@ export interface InvalidNamesScanResult {
   error?: string
 }
 
-// Scan a category for invalid ENS names
 export async function scanInvalidNames(categoryName: string): Promise<InvalidNamesScanResult> {
   const response = await fetch(`/api/cats/${encodeURIComponent(categoryName)}/invalid-names`, {
     credentials: 'include',
@@ -144,6 +144,28 @@ export async function scanInvalidNames(categoryName: string): Promise<InvalidNam
     throw new Error(error.error || 'Failed to scan for invalid names')
   }
 
+  return response.json()
+}
+
+export type ImageUploadResponse = ApiResponse<{
+  avatar_url: string | null
+  header_url: string | null
+}>
+
+export async function uploadCategoryImage(
+  categoryName: string,
+  type: 'avatar' | 'header',
+  file: File
+): Promise<ImageUploadResponse> {
+  const formData = new FormData()
+  formData.append('type', type)
+  formData.append('file', file)
+
+  const response = await fetch(`/api/cats/${categoryName}/images`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
   return response.json()
 }
 

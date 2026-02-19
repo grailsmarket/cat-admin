@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, use } from 'react'
+import { toast } from 'sonner'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { fetchEnsName, removeCategoriesFromName } from '@/api/names'
@@ -18,8 +19,7 @@ export default function NameDetailPage({ params }: PageProps) {
   const decodedName = decodeURIComponent(name)
   const queryClient = useQueryClient()
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [isSelectMode, setIsSelectMode] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState('')
   const [showMarketDetails, setShowMarketDetails] = useState(false)
@@ -51,9 +51,10 @@ export default function NameDetailPage({ params }: PageProps) {
       queryClient.invalidateQueries({ queryKey: ['ens-name', decodedName] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       setSelectedCategories(new Set())
-      showSuccess(`Removed ${data.removed} category membership(s)`)
+      setIsSelectMode(false)
+      toast.success(`Removed ${data.removed} category membership(s)`)
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const addMutation = useMutation({
@@ -64,25 +65,21 @@ export default function NameDetailPage({ params }: PageProps) {
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setShowAddForm(false)
         setSelectedCategoryToAdd('')
-        showSuccess(`Added to category "${selectedCategoryToAdd}"`)
+        toast.success(`Added to category "${selectedCategoryToAdd}"`)
       } else {
-        setError(result.error || 'Failed to add to category')
+        toast.error(result.error || 'Failed to add to category')
       }
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const handleAddToCategory = () => {
     if (!selectedCategoryToAdd) return
-    setError(null)
-    // Show confirmation modal
     setConfirmModal({ isOpen: true, type: 'add', categoryName: selectedCategoryToAdd })
   }
 
   const handleRemoveSelected = () => {
     if (selectedCategories.size === 0) return
-    setError(null)
-    // Show confirmation modal
     setConfirmModal({ isOpen: true, type: 'remove', categories: Array.from(selectedCategories) })
   }
 
@@ -96,11 +93,6 @@ export default function NameDetailPage({ params }: PageProps) {
         onSettled: () => setConfirmModal({ isOpen: false, type: 'remove' }),
       })
     }
-  }
-
-  const showSuccess = (message: string) => {
-    setSuccessMessage(message)
-    setTimeout(() => setSuccessMessage(null), 3000)
   }
 
   const toggleCategory = (categoryName: string) => {
@@ -133,7 +125,7 @@ export default function NameDetailPage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <div className='flex items-center justify-center p-8'>
+      <div className='flex items-center justify-center p-4 lg:p-8'>
         <div className='border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent' />
       </div>
     )
@@ -141,7 +133,7 @@ export default function NameDetailPage({ params }: PageProps) {
 
   if (fetchError || !ensName) {
     return (
-      <div className='p-8'>
+      <div className='p-4 lg:p-8'>
         <Link href='/names' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>
           <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
             <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
@@ -164,7 +156,7 @@ export default function NameDetailPage({ params }: PageProps) {
   const activeListing = hasListing ? listings[0] : null
 
   return (
-    <div className='p-8'>
+    <div className='p-4 lg:p-8'>
       {/* Header */}
       <div className='mb-8'>
         <Link href='/names' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>
@@ -201,27 +193,6 @@ export default function NameDetailPage({ params }: PageProps) {
                 You can remove it from categories below.
               </p>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Success message */}
-      {successMessage && (
-        <div className='bg-success/10 border-success mb-6 rounded-lg border p-4'>
-          <p className='text-success'>{successMessage}</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className='bg-error/10 border-error mb-6 rounded-lg border p-4'>
-          <div className='flex items-start justify-between'>
-            <p className='text-error'>{error}</p>
-            <button onClick={() => setError(null)} className='text-error hover:text-error/70'>
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
-              </svg>
-            </button>
           </div>
         </div>
       )}
@@ -405,13 +376,7 @@ export default function NameDetailPage({ params }: PageProps) {
             <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
               <h2 className='text-lg font-semibold'>Category Memberships</h2>
               <div className='flex items-center gap-2'>
-                <button
-                  onClick={() => setShowAddForm(!showAddForm)}
-                  className='btn btn-primary text-sm'
-                >
-                  {showAddForm ? 'Cancel' : 'Add to Category'}
-                </button>
-                {clubs.length > 0 && selectedCategories.size > 0 && (
+                {isSelectMode && selectedCategories.size > 0 && (
                   <button
                     onClick={handleRemoveSelected}
                     disabled={removeMutation.isPending}
@@ -422,6 +387,23 @@ export default function NameDetailPage({ params }: PageProps) {
                       : `Remove Selected (${selectedCategories.size})`}
                   </button>
                 )}
+                {clubs.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setIsSelectMode(!isSelectMode)
+                      if (isSelectMode) setSelectedCategories(new Set())
+                    }}
+                    className={`btn text-sm ${isSelectMode ? 'btn-secondary !border-primary !text-primary' : 'btn-secondary'}`}
+                  >
+                    {isSelectMode ? 'Done' : 'Select'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className='btn btn-primary text-sm'
+                >
+                  {showAddForm ? 'Cancel' : 'Add to Category'}
+                </button>
               </div>
             </div>
 
@@ -486,7 +468,7 @@ export default function NameDetailPage({ params }: PageProps) {
                 <table className='min-w-full'>
                   <thead className='bg-secondary sticky top-0'>
                     <tr>
-                      <th className='w-10'></th>
+                      {isSelectMode && <th className='w-10'></th>}
                       <th>Category</th>
                     </tr>
                   </thead>
@@ -494,21 +476,26 @@ export default function NameDetailPage({ params }: PageProps) {
                     {clubs.map((categoryName) => (
                       <tr
                         key={categoryName}
-                        className={`cursor-pointer transition-colors hover:bg-tertiary ${selectedCategories.has(categoryName) ? 'bg-primary/5' : ''}`}
+                        className={`cursor-pointer transition-colors hover:bg-tertiary ${isSelectMode && selectedCategories.has(categoryName) ? 'bg-primary/5' : ''}`}
                         onClick={(e) => {
-                          // Don't navigate if clicking on checkbox
                           if ((e.target as HTMLElement).tagName === 'INPUT') return
-                          window.location.href = `/categories/${encodeURIComponent(categoryName)}`
+                          if (isSelectMode) {
+                            toggleCategory(categoryName)
+                          } else {
+                            window.location.href = `/categories/${encodeURIComponent(categoryName)}`
+                          }
                         }}
                       >
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type='checkbox'
-                            checked={selectedCategories.has(categoryName)}
-                            onChange={() => toggleCategory(categoryName)}
-                            className='rounded'
-                          />
-                        </td>
+                        {isSelectMode && (
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type='checkbox'
+                              checked={selectedCategories.has(categoryName)}
+                              onChange={() => toggleCategory(categoryName)}
+                              className='rounded'
+                            />
+                          </td>
+                        )}
                         <td>
                           <span className='font-medium text-primary'>{categoryName}</span>
                         </td>

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, use, useMemo } from 'react'
+import { useState, useEffect, use, useMemo, useRef } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, type InvalidNameEntry } from '@/api/categories'
+import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, uploadCategoryImage, type InvalidNameEntry } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import ActivitySection from '@/components/ActivitySection'
@@ -23,15 +24,15 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [page, setPage] = useState(1)
   const [isEditing, setIsEditing] = useState(false)
   const [description, setDescription] = useState('')
+  const [editDisplayName, setEditDisplayName] = useState('')
   const [editClassifications, setEditClassifications] = useState<Classification[]>([])
   const [newNames, setNewNames] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set())
+  const [isSelectMode, setIsSelectMode] = useState(false)
   const [nameSearch, setNameSearch] = useState('')
   const [nameSortField, setNameSortField] = useState<NameSortField>('ens_name')
   const [nameSortDirection, setNameSortDirection] = useState<SortDirection>('asc')
-  const [error, setError] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
   
   // Invalid names scan state
   const [isScanning, setIsScanning] = useState(false)
@@ -41,10 +42,23 @@ export default function CategoryDetailPage({ params }: PageProps) {
   } | null>(null)
   const [showScanResults, setShowScanResults] = useState(false)
 
+  // Image upload state
+  const [imageUploading, setImageUploading] = useState<'avatar' | 'header' | null>(null)
+  const [stagedImage, setStagedImage] = useState<{ type: 'avatar' | 'header'; file: File; previewUrl: string } | null>(null)
+  const [imageCacheBuster, setImageCacheBuster] = useState(0)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const headerInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return () => {
+      if (stagedImage?.previewUrl) URL.revokeObjectURL(stagedImage.previewUrl)
+    }
+  }, [stagedImage?.previewUrl])
+
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
-    type: 'add' | 'remove' | 'description'
+    type: 'add' | 'remove' | 'description' | 'upload-image'
     names: string[]
   }>({ isOpen: false, type: 'add', names: [] })
 
@@ -58,14 +72,14 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   // Update category mutation
   const updateMutation = useMutation({
-    mutationFn: () => updateCategory(name, { description, classifications: editClassifications }),
+    mutationFn: () => updateCategory(name, { description, display_name: editDisplayName, classifications: editClassifications }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['category', name] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       setIsEditing(false)
-      showSuccess('Category updated successfully')
+      toast.success('Category updated successfully')
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   // Add names mutation
@@ -77,16 +91,16 @@ export default function CategoryDetailPage({ params }: PageProps) {
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setNewNames('')
         setShowAddForm(false)
-        showSuccess(`Added ${result.added} name(s)${result.skipped ? `, skipped ${result.skipped} existing` : ''}`)
+        toast.success(`Added ${result.added} name(s)${result.skipped ? `, skipped ${result.skipped} existing` : ''}`)
       } else {
         if (result.invalidNames && result.invalidNames.length > 0) {
-          setError(`Invalid ENS names: ${result.invalidNames.slice(0, 5).join(', ')}${result.invalidNames.length > 5 ? ` and ${result.invalidNames.length - 5} more` : ''}`)
+          toast.error(`Invalid ENS names: ${result.invalidNames.slice(0, 5).join(', ')}${result.invalidNames.length > 5 ? ` and ${result.invalidNames.length - 5} more` : ''}`)
         } else {
-          setError(result.error || 'Failed to add names')
+          toast.error(result.error || 'Failed to add names')
         }
       }
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   // Remove names mutation
@@ -97,7 +111,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
         queryClient.invalidateQueries({ queryKey: ['category', name] })
         queryClient.invalidateQueries({ queryKey: ['categories'] })
         setSelectedNames(new Set())
-        showSuccess(`Removed ${result.removed} name(s)`)
+        setIsSelectMode(false)
+        toast.success(`Removed ${result.removed} name(s)`)
         
         // Update scan results to remove the deleted names
         if (scanResults) {
@@ -115,20 +130,61 @@ export default function CategoryDetailPage({ params }: PageProps) {
           }
         }
       } else {
-        setError(result.error || 'Failed to remove names')
+        toast.error(result.error || 'Failed to remove names')
       }
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: Error) => toast.error(err.message),
   })
 
-  const showSuccess = (message: string) => {
-    setSuccessMessage(message)
-    setTimeout(() => setSuccessMessage(''), 3000)
+
+  const handleImageSelect = (type: 'avatar' | 'header', file: File) => {
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      toast.error('Only JPEG and PNG files are allowed.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('File must be 2 MB or less.')
+      return
+    }
+
+    if (stagedImage?.previewUrl) URL.revokeObjectURL(stagedImage.previewUrl)
+    const previewUrl = URL.createObjectURL(file)
+    setStagedImage({ type, file, previewUrl })
+    setConfirmModal({ isOpen: true, type: 'upload-image', names: [] })
+  }
+
+  const handleImageUploadConfirm = async () => {
+    if (!stagedImage) return
+    setConfirmModal({ isOpen: false, type: 'add', names: [] })
+
+    const { type, file } = stagedImage
+    setImageUploading(type)
+    try {
+      const result = await uploadCategoryImage(name, type, file)
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: ['category', name] })
+        setImageCacheBuster(prev => prev + 1)
+        toast.success(`${type === 'avatar' ? 'Avatar' : 'Header'} image uploaded successfully`)
+      } else {
+        toast.error(result.error || `Failed to upload ${type} image`)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to upload ${type} image`)
+    } finally {
+      setImageUploading(null)
+      if (stagedImage?.previewUrl) URL.revokeObjectURL(stagedImage.previewUrl)
+      setStagedImage(null)
+    }
+  }
+
+  const handleImageUploadCancel = () => {
+    if (stagedImage?.previewUrl) URL.revokeObjectURL(stagedImage.previewUrl)
+    setStagedImage(null)
+    setConfirmModal({ isOpen: false, type: 'add', names: [] })
   }
 
   const handleScanInvalidNames = async () => {
     setIsScanning(true)
-    setError('')
     try {
       const result = await scanInvalidNames(name)
       setScanResults({
@@ -137,10 +193,10 @@ export default function CategoryDetailPage({ params }: PageProps) {
       })
       setShowScanResults(true)
       if (result.invalidCount === 0) {
-        showSuccess(`Scanned ${result.totalScanned.toLocaleString()} names - no invalid names found!`)
+        toast.success(`Scanned ${result.totalScanned.toLocaleString()} names - no invalid names found!`)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scan for invalid names')
+      toast.error(err instanceof Error ? err.message : 'Failed to scan for invalid names')
     } finally {
       setIsScanning(false)
     }
@@ -180,18 +236,18 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   const handleStartEdit = () => {
     setDescription(category?.description || '')
-    // Initialize classifications from category data
+    setEditDisplayName(category?.display_name || '')
     const currentClassifications = (category?.classifications || []).filter(
       (c): c is Classification => VALID_CLASSIFICATIONS.includes(c as Classification)
     )
     setEditClassifications(currentClassifications)
     setIsEditing(true)
-    setError('')
   }
 
   const handleCancelEdit = () => {
     setIsEditing(false)
     setDescription('')
+    setEditDisplayName('')
     setEditClassifications([])
   }
 
@@ -200,15 +256,13 @@ export default function CategoryDetailPage({ params }: PageProps) {
   }
 
   const handleAddNames = () => {
-    setError('')
-
     if (parsedNames.length === 0) {
-      setError('Please enter at least one ENS name')
+      toast.error('Please enter at least one ENS name')
       return
     }
 
     if (hasInvalidInputNames) {
-      setError('Please fix invalid names before adding')
+      toast.error('Please fix invalid names before adding')
       return
     }
 
@@ -223,8 +277,6 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   const handleRemoveSelected = () => {
     if (selectedNames.size === 0) return
-    setError('')
-    // Show confirmation modal
     setConfirmModal({ isOpen: true, type: 'remove', names: Array.from(selectedNames) })
   }
 
@@ -241,6 +293,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
       updateMutation.mutate(undefined, {
         onSettled: () => setConfirmModal({ isOpen: false, type: 'description', names: [] }),
       })
+    } else if (confirmModal.type === 'upload-image') {
+      handleImageUploadConfirm()
     }
   }
 
@@ -385,7 +439,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <div className='flex items-center justify-center p-8'>
+      <div className='flex items-center justify-center p-4 lg:p-8'>
         <div className='border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent' />
       </div>
     )
@@ -393,7 +447,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
   if (fetchError || !category) {
     return (
-      <div className='p-8'>
+      <div className='p-4 lg:p-8'>
         <Link href='/categories' className='text-neutral hover:text-primary mb-4 inline-flex items-center gap-1 text-sm'>
           <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
             <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
@@ -409,42 +463,34 @@ export default function CategoryDetailPage({ params }: PageProps) {
   }
 
   return (
-    <div className='p-8'>
-      {/* Success message */}
-      {successMessage && (
-        <div className='bg-success/10 border-success mb-6 rounded-lg border p-4'>
-          <p className='text-success'>{successMessage}</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className='bg-error/10 border-error mb-6 rounded-lg border p-4'>
-          <div className='flex items-start justify-between'>
-            <p className='text-error'>{error}</p>
-            <button onClick={() => setError('')} className='text-error hover:text-error/70'>
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
+    <div className='p-4 lg:p-8'>
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
         {/* Left column - Category details */}
         <div className='lg:col-span-1 space-y-6'>
           {/* Category header + Details */}
           <div className='card'>
             {/* Header */}
-            <h1 className='text-2xl font-bold'>{category.name}</h1>
+            <h1 className='text-2xl font-bold'>{category.display_name || category.name}</h1>
+            {category.display_name && (
+              <p className='text-neutral text-sm font-mono'>{category.name}</p>
+            )}
 
             {/* Divider */}
             <div className='border-border my-4 border-t' />
 
-            {/* Description & Classifications */}
+            {/* Display Name, Description & Classifications */}
             {isEditing ? (
               <div className='space-y-4'>
+                <div>
+                  <label className='mb-2 block text-sm font-medium'>Display Name</label>
+                  <input
+                    type='text'
+                    value={editDisplayName}
+                    onChange={(e) => setEditDisplayName(e.target.value)}
+                    className='w-full'
+                    placeholder='Human-readable name...'
+                  />
+                </div>
                 <div>
                   <label className='mb-2 block text-sm font-medium'>Description</label>
                   <textarea
@@ -515,11 +561,15 @@ export default function CategoryDetailPage({ params }: PageProps) {
               <div className='space-y-4'>
                 <div>
                   <div className='flex items-center justify-between'>
-                    <p className='text-neutral text-sm'>Description</p>
+                    <p className='text-neutral text-sm'>Display Name</p>
                     <button onClick={handleStartEdit} className='text-primary hover:underline text-sm'>
                       Edit
                     </button>
                   </div>
+                  <p className='mt-1'>{category.display_name || <span className='text-neutral italic'>Same as slug</span>}</p>
+                </div>
+                <div>
+                  <p className='text-neutral text-sm'>Description</p>
                   <p className='mt-1'>{category.description || <span className='text-neutral italic'>No description</span>}</p>
                 </div>
                 
@@ -571,8 +621,88 @@ export default function CategoryDetailPage({ params }: PageProps) {
             </div>
           </div>
 
+          {/* Images Section */}
+          <div className='card'>
+            <h2 className='mb-4 text-lg font-semibold'>Images</h2>
+            <div className='space-y-4'>
+              {/* Avatar */}
+              <div>
+                <div className='flex items-center justify-between mb-2'>
+                  <p className='text-neutral text-sm'>Avatar</p>
+                  <label className='text-primary hover:underline text-sm cursor-pointer'>
+                    {category.avatar_url ? 'Replace' : 'Upload'}
+                    <input
+                      ref={avatarInputRef}
+                      type='file'
+                      accept='image/jpeg,image/png'
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleImageSelect('avatar', file)
+                        if (avatarInputRef.current) avatarInputRef.current.value = ''
+                      }}
+                      className='sr-only'
+                      disabled={imageUploading !== null}
+                    />
+                  </label>
+                </div>
+                {imageUploading === 'avatar' ? (
+                  <div className='flex h-24 w-24 items-center justify-center rounded-lg border border-border'>
+                    <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+                  </div>
+                ) : category.avatar_url ? (
+                  <img
+                    src={`${category.avatar_url}&v=${imageCacheBuster}`}
+                    alt={`${category.name} avatar`}
+                    className='h-24 w-24 rounded-lg border border-border object-cover'
+                  />
+                ) : (
+                  <div className='flex h-24 w-24 items-center justify-center rounded-lg border-2 border-dashed border-border'>
+                    <span className='text-neutral text-xs'>No avatar</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Header */}
+              <div>
+                <div className='flex items-center justify-between mb-2'>
+                  <p className='text-neutral text-sm'>Header</p>
+                  <label className='text-primary hover:underline text-sm cursor-pointer'>
+                    {category.header_url ? 'Replace' : 'Upload'}
+                    <input
+                      ref={headerInputRef}
+                      type='file'
+                      accept='image/jpeg,image/png'
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleImageSelect('header', file)
+                        if (headerInputRef.current) headerInputRef.current.value = ''
+                      }}
+                      className='sr-only'
+                      disabled={imageUploading !== null}
+                    />
+                  </label>
+                </div>
+                {imageUploading === 'header' ? (
+                  <div className='flex h-32 w-full items-center justify-center rounded-lg border border-border'>
+                    <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+                  </div>
+                ) : category.header_url ? (
+                  <img
+                    src={`${category.header_url}&v=${imageCacheBuster}`}
+                    alt={`${category.name} header`}
+                    className='w-full rounded-lg border border-border'
+                  />
+                ) : (
+                  <div className='flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed border-border'>
+                    <span className='text-neutral text-xs'>No header</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Activity Section */}
-          <div className='card mt-6'>
+          <div className='card'>
             <h2 className='mb-4 text-lg font-semibold'>Recent Activity</h2>
             <ActivitySection category={name} limit={10} />
           </div>
@@ -585,13 +715,24 @@ export default function CategoryDetailPage({ params }: PageProps) {
             <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
               <h2 className='text-lg font-semibold'>Names</h2>
               <div className='flex items-center gap-2'>
-                {selectedNames.size > 0 && (
+                {isSelectMode && selectedNames.size > 0 && (
                   <button
                     onClick={handleRemoveSelected}
                     className='btn btn-danger text-sm'
                     disabled={removeNamesMutation.isPending}
                   >
                     {removeNamesMutation.isPending ? 'Removing...' : `Remove ${selectedNames.size} Selected`}
+                  </button>
+                )}
+                {category.names && category.names.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setIsSelectMode(!isSelectMode)
+                      if (isSelectMode) setSelectedNames(new Set())
+                    }}
+                    className={`btn text-sm ${isSelectMode ? 'btn-secondary !border-primary !text-primary' : 'btn-secondary'}`}
+                  >
+                    {isSelectMode ? 'Done' : 'Select'}
                   </button>
                 )}
                 <button
@@ -788,14 +929,16 @@ export default function CategoryDetailPage({ params }: PageProps) {
                   <table className='min-w-full'>
                     <thead className='bg-secondary sticky top-0'>
                       <tr>
-                        <th className='w-10'>
-                          <input
-                            type='checkbox'
-                            checked={selectedNames.size === category.names?.length && category.names.length > 0}
-                            onChange={toggleAllNames}
-                            className='rounded'
-                          />
-                        </th>
+                        {isSelectMode && (
+                          <th className='w-10'>
+                            <input
+                              type='checkbox'
+                              checked={selectedNames.size === category.names?.length && category.names.length > 0}
+                              onChange={toggleAllNames}
+                              className='rounded'
+                            />
+                          </th>
+                        )}
                         <th 
                           className='cursor-pointer hover:text-foreground'
                           onClick={() => handleNameSort('ens_name')}
@@ -812,15 +955,17 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     </thead>
                     <tbody>
                       {filteredNames.map((entry) => (
-                        <tr key={entry.ens_name} className={selectedNames.has(entry.ens_name) ? 'bg-primary/5' : ''}>
-                          <td>
-                            <input
-                              type='checkbox'
-                              checked={selectedNames.has(entry.ens_name)}
-                              onChange={() => toggleName(entry.ens_name)}
-                              className='rounded'
-                            />
-                          </td>
+                        <tr key={entry.ens_name} className={isSelectMode && selectedNames.has(entry.ens_name) ? 'bg-primary/5' : ''}>
+                          {isSelectMode && (
+                            <td>
+                              <input
+                                type='checkbox'
+                                checked={selectedNames.has(entry.ens_name)}
+                                onChange={() => toggleName(entry.ens_name)}
+                                className='rounded'
+                              />
+                            </td>
+                          )}
                           <td className='font-mono'>
                             <Link href={`/names/${entry.ens_name}`} className='text-primary hover:underline'>
                               {entry.ens_name}
@@ -836,7 +981,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
                 {/* Pagination */}
                 {category.pagination && category.pagination.totalPages > 1 && (
-                  <div className='mt-4 flex items-center justify-between'>
+                  <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                     <p className='text-neutral text-sm'>
                       Showing {(page - 1) * 50 + 1}-{Math.min(page * 50, category.pagination.totalNames)} of{' '}
                       {category.pagination.totalNames.toLocaleString()}
@@ -875,28 +1020,48 @@ export default function CategoryDetailPage({ params }: PageProps) {
       {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, type: 'add', names: [] })}
+        onClose={confirmModal.type === 'upload-image' ? handleImageUploadCancel : () => setConfirmModal({ isOpen: false, type: 'add', names: [] })}
         onConfirm={handleConfirmAction}
         title={
           confirmModal.type === 'add'
             ? 'Add Names to Category'
             : confirmModal.type === 'remove'
               ? 'Remove Names from Category'
-              : 'Update Category Description'
+              : confirmModal.type === 'upload-image'
+                ? `Upload ${stagedImage?.type === 'avatar' ? 'Avatar' : 'Header'} Image`
+                : 'Update Category'
         }
         message={
           confirmModal.type === 'add'
             ? `Are you sure you want to add ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} to "${name}"?`
             : confirmModal.type === 'remove'
               ? `Are you sure you want to remove ${confirmModal.names.length} name${confirmModal.names.length !== 1 ? 's' : ''} from "${name}"? This action cannot be undone.`
-              : `Are you sure you want to update the description for "${name}"?`
+              : confirmModal.type === 'upload-image' && stagedImage
+                ? (
+                  <div className='space-y-3'>
+                    <p>Upload this image as the <strong>{stagedImage.type}</strong> for &quot;{name}&quot;?</p>
+                    <div className='rounded-lg border border-border overflow-hidden'>
+                      <img
+                        src={stagedImage.previewUrl}
+                        alt='Preview'
+                        className={stagedImage.type === 'avatar' ? 'h-32 w-32 object-cover mx-auto' : 'w-full'}
+                      />
+                    </div>
+                    <p className='text-neutral text-sm'>
+                      {stagedImage.file.name} ({(stagedImage.file.size / 1024).toFixed(0)} KB)
+                    </p>
+                  </div>
+                )
+                : `Are you sure you want to update "${name}"?`
         }
         confirmText={
           confirmModal.type === 'add'
             ? 'Add Names'
             : confirmModal.type === 'remove'
               ? 'Remove Names'
-              : 'Update Description'
+              : confirmModal.type === 'upload-image'
+                ? 'Upload'
+                : 'Update'
         }
         variant={confirmModal.type === 'remove' ? 'danger' : 'default'}
         isLoading={addNamesMutation.isPending || removeNamesMutation.isPending || updateMutation.isPending}

@@ -286,7 +286,7 @@ export default function ActivityPage() {
   }
 
   return (
-    <div className='p-8'>
+    <div className='p-4 lg:p-8'>
       {/* Header */}
       <div className='mb-8'>
         <h1 className='text-3xl font-bold'>Activity Log</h1>
@@ -326,7 +326,7 @@ export default function ActivityPage() {
             <option value='DELETE'>Delete</option>
           </select>
         </div>
-        <div className='w-64'>
+        <div className='w-full sm:w-64'>
           <label className='text-neutral mb-1 block text-xs'>Actor</label>
           <SearchableSelect
             options={actorOptions}
@@ -422,8 +422,8 @@ export default function ActivityPage() {
               </div>
             )}
             <div className='card overflow-hidden p-0'>
-              <div className='max-h-[70vh] overflow-y-auto'>
-                <table>
+              <div className='max-h-[70vh] overflow-auto'>
+                <table className='min-w-[600px]'>
                   <thead className='bg-secondary sticky top-0'>
                     <tr>
                       <th className='w-24'>Time</th>
@@ -587,7 +587,7 @@ export default function ActivityPage() {
 
           {/* Pagination */}
           {pagination && pagination.totalPages > 1 && (
-            <div className='mt-4 flex items-center justify-between'>
+            <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
               <p className='text-neutral text-sm'>
                 Showing {(page - 1) * 50 + 1}-{Math.min(page * 50, pagination.totalEntries)} of{' '}
                 {pagination.totalEntries.toLocaleString()}

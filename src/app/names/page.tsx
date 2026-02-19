@@ -2,20 +2,18 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { normalizeEnsName } from '@/lib/normalize'
 
 export default function NamesPage() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
 
     const trimmed = searchQuery.trim()
     if (!trimmed) {
-      setError('Please enter an ENS name')
+      toast.error('Please enter an ENS name')
       return
     }
 
@@ -25,7 +23,7 @@ export default function NamesPage() {
     // Normalize on client side for better UX
     const normalized = normalizeEnsName(withSuffix)
     if (!normalized) {
-      setError('Invalid ENS name format')
+      toast.error('Invalid ENS name format')
       return
     }
 
@@ -34,7 +32,7 @@ export default function NamesPage() {
   }
 
   return (
-    <div className='p-8'>
+    <div className='p-4 lg:p-8'>
       {/* Header */}
       <div className='mx-auto mb-8 max-w-xl'>
         <h1 className='text-3xl font-bold'>Name Lookup</h1>
@@ -78,9 +76,6 @@ export default function NamesPage() {
                 Search
               </button>
             </div>
-            {error && (
-              <p className='text-error mt-2 text-sm'>{error}</p>
-            )}
           </div>
         </form>
       </div>

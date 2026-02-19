@@ -84,14 +84,14 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className='p-8'>
+    <div className='p-4 lg:p-8'>
       {/* Header */}
       <div className='mb-8'>
         <h1 className='text-3xl font-bold'>Name Categories</h1>
       </div>
 
       {/* Search and filters */}
-      <div className='mb-6 flex items-center gap-4'>
+      <div className='mb-6 flex flex-col gap-4 sm:flex-row sm:items-center'>
         <div className='relative flex-1 max-w-md'>
           <svg
             className='text-neutral absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2'
@@ -114,24 +114,25 @@ export default function CategoriesPage() {
             className='w-full pl-10'
           />
         </div>
-        <button onClick={() => refetch()} className='btn btn-secondary'>
-          <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-            <path
-              strokeLinecap='round'
-              strokeLinejoin='round'
-              strokeWidth={2}
-              d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
-            />
-          </svg>
-          Refresh
-        </button>
-        <div className='flex-1' />
-        <Link href='/categories/new' className='btn btn-primary'>
-          <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
-          </svg>
-          New Category
-        </Link>
+        <div className='flex items-center gap-2 sm:ml-auto'>
+          <button onClick={() => refetch()} className='btn btn-secondary'>
+            <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
+              />
+            </svg>
+            Refresh
+          </button>
+          <Link href='/categories/new' className='btn btn-primary'>
+            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
+            </svg>
+            New Category
+          </Link>
+        </div>
       </div>
 
       {/* Error state */}
@@ -175,17 +176,19 @@ export default function CategoriesPage() {
       {/* Categories table */}
       {!isLoading && !error && filteredCategories.length > 0 && (
         <div className='card overflow-hidden p-0'>
+          <div className='overflow-x-auto'>
           <table>
             <thead>
               <tr>
+                <th className='w-16'>Images</th>
                 <th
                   className='cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('name')}
                 >
                   Slug <SortIcon field='name' />
                 </th>
-                <th>Description</th>
-                <th>Classifications</th>
+                <th>Display Name</th>
+                <th className='hidden md:table-cell'>Classifications</th>
                 <th
                   className='cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('name_count')}
@@ -193,13 +196,13 @@ export default function CategoriesPage() {
                   Names <SortIcon field='name_count' />
                 </th>
                 <th
-                  className='cursor-pointer hover:text-foreground'
+                  className='hidden lg:table-cell cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('created_at')}
                 >
                   Created <SortIcon field='created_at' />
                 </th>
                 <th
-                  className='cursor-pointer hover:text-foreground'
+                  className='hidden lg:table-cell cursor-pointer hover:text-foreground'
                   onClick={() => handleSort('updated_at')}
                 >
                   Updated <SortIcon field='updated_at' />
@@ -208,8 +211,21 @@ export default function CategoriesPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredCategories.map((category) => (
+              {filteredCategories.map((category) => {
+                const hasAvatar = !!category.avatar_image_key
+                const hasHeader = !!category.header_image_key
+                const imageStatus = hasAvatar && hasHeader ? 'complete' : hasAvatar || hasHeader ? 'partial' : 'none'
+                return (
                 <tr key={category.name}>
+                  <td className='w-16'>
+                    {imageStatus === 'complete' ? (
+                      <span className='inline-block h-2.5 w-2.5 rounded-full bg-success' title='Avatar and header uploaded' />
+                    ) : imageStatus === 'partial' ? (
+                      <span className='inline-block h-2.5 w-2.5 rounded-full bg-warning' title={`Missing ${!hasAvatar ? 'avatar' : 'header'}`} />
+                    ) : (
+                      <span className='inline-block h-2.5 w-2.5 rounded-full bg-neutral/30' title='No images' />
+                    )}
+                  </td>
                   <td>
                     <Link
                       href={`/categories/${category.name}`}
@@ -218,10 +234,8 @@ export default function CategoriesPage() {
                       {category.name}
                     </Link>
                   </td>
-                  <td className='text-neutral max-w-xs truncate'>
-                    {category.description || '—'}
-                  </td>
-                  <td>
+                  <td className='text-neutral max-w-xs truncate'>{category.display_name || '—'}</td>
+                  <td className='hidden md:table-cell'>
                     {category.classifications && category.classifications.length > 0 ? (
                       <div className='flex flex-wrap gap-1'>
                         {category.classifications.map((c) => (
@@ -242,8 +256,8 @@ export default function CategoriesPage() {
                       {(category.name_count ?? 0).toLocaleString()}
                     </span>
                   </td>
-                  <td className='text-neutral text-sm'>{formatDate(category.created_at)}</td>
-                  <td className='text-neutral text-sm'>{formatDate(category.updated_at)}</td>
+                  <td className='hidden lg:table-cell text-neutral text-sm'>{formatDate(category.created_at)}</td>
+                  <td className='hidden lg:table-cell text-neutral text-sm'>{formatDate(category.updated_at)}</td>
                   <td>
                     <Link
                       href={`/categories/${category.name}`}
@@ -260,9 +274,11 @@ export default function CategoriesPage() {
                     </Link>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
