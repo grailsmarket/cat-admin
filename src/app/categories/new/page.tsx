@@ -26,6 +26,7 @@ export default function NewCategoryPage() {
   const [headerFile, setHeaderFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [headerPreview, setHeaderPreview] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState<'avatar' | 'header' | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const headerInputRef = useRef<HTMLInputElement>(null)
 
@@ -84,6 +85,18 @@ export default function NewCategoryPage() {
       setHeaderPreview(null)
       if (headerInputRef.current) headerInputRef.current.value = ''
     }
+  }
+
+  const handleDrop = (type: 'avatar' | 'header', e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(null)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleFileSelect(type, file)
+  }
+
+  const handleDragOver = (type: 'avatar' | 'header', e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(type)
   }
 
   const createMutation = useMutation({
@@ -322,7 +335,12 @@ export default function NewCategoryPage() {
             <div>
               <label className='mb-2 block text-sm font-medium'>Avatar</label>
               {avatarPreview ? (
-                <div className='relative'>
+                <div
+                  className={`relative rounded-lg ${dragOver === 'avatar' ? 'ring-2 ring-primary' : ''}`}
+                  onDrop={(e) => handleDrop('avatar', e)}
+                  onDragOver={(e) => handleDragOver('avatar', e)}
+                  onDragLeave={() => setDragOver(null)}
+                >
                   <img
                     src={avatarPreview}
                     alt='Avatar preview'
@@ -339,11 +357,16 @@ export default function NewCategoryPage() {
                   </button>
                 </div>
               ) : (
-                <label className='flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-surface-2 transition-colors'>
+                <label
+                  className={`flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors ${dragOver === 'avatar' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50 hover:bg-surface-2'}`}
+                  onDrop={(e) => handleDrop('avatar', e)}
+                  onDragOver={(e) => handleDragOver('avatar', e)}
+                  onDragLeave={() => setDragOver(null)}
+                >
                   <svg className='h-8 w-8 text-neutral mb-1' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1.5} d='M12 4v16m8-8H4' />
                   </svg>
-                  <span className='text-neutral text-xs'>Upload</span>
+                  <span className='text-neutral text-xs'>{dragOver === 'avatar' ? 'Drop here' : 'Upload or drop'}</span>
                   <input
                     ref={avatarInputRef}
                     type='file'
@@ -360,7 +383,12 @@ export default function NewCategoryPage() {
             <div>
               <label className='mb-2 block text-sm font-medium'>Header</label>
               {headerPreview ? (
-                <div className='relative'>
+                <div
+                  className={`relative rounded-lg ${dragOver === 'header' ? 'ring-2 ring-primary' : ''}`}
+                  onDrop={(e) => handleDrop('header', e)}
+                  onDragOver={(e) => handleDragOver('header', e)}
+                  onDragLeave={() => setDragOver(null)}
+                >
                   <img
                     src={headerPreview}
                     alt='Header preview'
@@ -377,11 +405,16 @@ export default function NewCategoryPage() {
                   </button>
                 </div>
               ) : (
-                <label className='flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-surface-2 transition-colors'>
+                <label
+                  className={`flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors ${dragOver === 'header' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50 hover:bg-surface-2'}`}
+                  onDrop={(e) => handleDrop('header', e)}
+                  onDragOver={(e) => handleDragOver('header', e)}
+                  onDragLeave={() => setDragOver(null)}
+                >
                   <svg className='h-8 w-8 text-neutral mb-1' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1.5} d='M12 4v16m8-8H4' />
                   </svg>
-                  <span className='text-neutral text-xs'>Upload</span>
+                  <span className='text-neutral text-xs'>{dragOver === 'header' ? 'Drop here' : 'Upload or drop'}</span>
                   <input
                     ref={headerInputRef}
                     type='file'

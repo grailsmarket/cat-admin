@@ -46,6 +46,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [imageUploading, setImageUploading] = useState<'avatar' | 'header' | null>(null)
   const [stagedImage, setStagedImage] = useState<{ type: 'avatar' | 'header'; file: File; previewUrl: string } | null>(null)
   const [imageCacheBuster, setImageCacheBuster] = useState(0)
+  const [dragOver, setDragOver] = useState<'avatar' | 'header' | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const headerInputRef = useRef<HTMLInputElement>(null)
 
@@ -151,6 +152,18 @@ export default function CategoryDetailPage({ params }: PageProps) {
     const previewUrl = URL.createObjectURL(file)
     setStagedImage({ type, file, previewUrl })
     setConfirmModal({ isOpen: true, type: 'upload-image', names: [] })
+  }
+
+  const handleImageDrop = (type: 'avatar' | 'header', e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(null)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleImageSelect(type, file)
+  }
+
+  const handleImageDragOver = (type: 'avatar' | 'header', e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(type)
   }
 
   const handleImageUploadConfirm = async () => {
@@ -626,7 +639,11 @@ export default function CategoryDetailPage({ params }: PageProps) {
             <h2 className='mb-4 text-lg font-semibold'>Images</h2>
             <div className='space-y-4'>
               {/* Avatar */}
-              <div>
+              <div
+                onDrop={(e) => handleImageDrop('avatar', e)}
+                onDragOver={(e) => handleImageDragOver('avatar', e)}
+                onDragLeave={() => setDragOver(null)}
+              >
                 <div className='flex items-center justify-between mb-2'>
                   <p className='text-neutral text-sm'>Avatar</p>
                   <label className='text-primary hover:underline text-sm cursor-pointer'>
@@ -650,20 +667,26 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
                   </div>
                 ) : category.avatar_url ? (
-                  <img
-                    src={`${category.avatar_url}&v=${imageCacheBuster}`}
-                    alt={`${category.name} avatar`}
-                    className='h-24 w-24 rounded-lg border border-border object-cover'
-                  />
+                  <div className={`rounded-lg transition-all ${dragOver === 'avatar' ? 'ring-2 ring-primary' : ''}`}>
+                    <img
+                      src={`${category.avatar_url}&v=${imageCacheBuster}`}
+                      alt={`${category.name} avatar`}
+                      className='h-24 w-24 rounded-lg border border-border object-cover'
+                    />
+                  </div>
                 ) : (
-                  <div className='flex h-24 w-24 items-center justify-center rounded-lg border-2 border-dashed border-border'>
-                    <span className='text-neutral text-xs'>No avatar</span>
+                  <div className={`flex h-24 w-24 items-center justify-center rounded-lg border-2 border-dashed transition-colors ${dragOver === 'avatar' ? 'border-primary bg-primary/10' : 'border-border'}`}>
+                    <span className='text-neutral text-xs'>{dragOver === 'avatar' ? 'Drop here' : 'No avatar'}</span>
                   </div>
                 )}
               </div>
 
               {/* Header */}
-              <div>
+              <div
+                onDrop={(e) => handleImageDrop('header', e)}
+                onDragOver={(e) => handleImageDragOver('header', e)}
+                onDragLeave={() => setDragOver(null)}
+              >
                 <div className='flex items-center justify-between mb-2'>
                   <p className='text-neutral text-sm'>Header</p>
                   <label className='text-primary hover:underline text-sm cursor-pointer'>
@@ -687,14 +710,16 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
                   </div>
                 ) : category.header_url ? (
-                  <img
-                    src={`${category.header_url}&v=${imageCacheBuster}`}
-                    alt={`${category.name} header`}
-                    className='w-full rounded-lg border border-border'
-                  />
+                  <div className={`rounded-lg transition-all ${dragOver === 'header' ? 'ring-2 ring-primary' : ''}`}>
+                    <img
+                      src={`${category.header_url}&v=${imageCacheBuster}`}
+                      alt={`${category.name} header`}
+                      className='w-full rounded-lg border border-border'
+                    />
+                  </div>
                 ) : (
-                  <div className='flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed border-border'>
-                    <span className='text-neutral text-xs'>No header</span>
+                  <div className={`flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed transition-colors ${dragOver === 'header' ? 'border-primary bg-primary/10' : 'border-border'}`}>
+                    <span className='text-neutral text-xs'>{dragOver === 'header' ? 'Drop here' : 'No header'}</span>
                   </div>
                 )}
               </div>
