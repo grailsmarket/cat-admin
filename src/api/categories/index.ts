@@ -147,6 +147,19 @@ export async function scanInvalidNames(categoryName: string): Promise<InvalidNam
   return response.json()
 }
 
+export type DeleteCategoryResponse = ApiResponse<{
+  name: string
+  membershipsRemoved: number
+}>
+
+export async function deleteCategory(name: string): Promise<DeleteCategoryResponse> {
+  const response = await fetch(`/api/cats/${name}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  return response.json()
+}
+
 export type ImageUploadResponse = ApiResponse<{
   avatar_url: string | null
   header_url: string | null

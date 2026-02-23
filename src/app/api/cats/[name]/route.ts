@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { query, withActorTransaction } from '@/lib/db'
 import { verifyAdmin } from '@/lib/auth'
 import { validateClassifications } from '@/constants/classifications'
+import { deleteFile, isStorageEnabled } from '@/lib/storage'
 import type { Category } from '@/types'
 
 
@@ -198,5 +199,66 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
     
     return NextResponse.json({ error: 'Failed to update category' }, { status: 500 })
+  }
+}
+
+// DELETE /api/cats/[name] - Delete category entirely
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { name } = await params
+    const cookieStore = await cookies()
+    const token = cookieStore.get('token')?.value
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { isAdmin, address } = await verifyAdmin(token)
+    if (!isAdmin || !address) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const [category] = await query<Category>(`
+      SELECT name, avatar_image_key, header_image_key, member_count AS name_count
+      FROM clubs WHERE name = $1
+    `, [name])
+
+    if (!category) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+    }
+
+    // Delete memberships first, then the club — all in one audited transaction
+    const deletedMemberships = await withActorTransaction(address, async (client) => {
+      const memberResult = await client.query(
+        'DELETE FROM club_memberships WHERE club_name = $1', [name]
+      )
+      await client.query('DELETE FROM clubs WHERE name = $1', [name])
+      return memberResult.rowCount ?? 0
+    })
+
+    // Clean up S3 images (best-effort, don't fail the request)
+    if (isStorageEnabled()) {
+      const deletePromises: Promise<void>[] = []
+      if (category.avatar_image_key) deletePromises.push(deleteFile(category.avatar_image_key))
+      if (category.header_image_key) deletePromises.push(deleteFile(category.header_image_key))
+      await Promise.allSettled(deletePromises)
+    }
+
+    console.log(`[cats] Deleted category: ${name} (${deletedMemberships} memberships removed) by ${address}`)
+
+    return NextResponse.json({
+      success: true,
+      data: { name, membershipsRemoved: deletedMemberships },
+    })
+  } catch (error) {
+    console.error('Delete category error:', error)
+
+    if (error instanceof Error && error.message.includes('DATABASE_URL')) {
+      return NextResponse.json({
+        error: 'Database not configured. Set DATABASE_URL environment variable.',
+      }, { status: 503 })
+    }
+
+    return NextResponse.json({ error: 'Failed to delete category' }, { status: 500 })
   }
 }

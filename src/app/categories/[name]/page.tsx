@@ -4,7 +4,8 @@ import { useState, useEffect, use, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, uploadCategoryImage, type InvalidNameEntry } from '@/api/categories'
+import { useRouter } from 'next/navigation'
+import { fetchCategory, updateCategory, addNames, removeNames, scanInvalidNames, uploadCategoryImage, deleteCategory, type InvalidNameEntry } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import ActivitySection from '@/components/ActivitySection'
@@ -20,6 +21,7 @@ type SortDirection = 'asc' | 'desc'
 export default function CategoryDetailPage({ params }: PageProps) {
   const { name } = use(params)
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const [page, setPage] = useState(1)
   const [isEditing, setIsEditing] = useState(false)
@@ -49,6 +51,11 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const [dragOver, setDragOver] = useState<'avatar' | 'header' | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const headerInputRef = useRef<HTMLInputElement>(null)
+
+  // Delete state
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -164,6 +171,26 @@ export default function CategoryDetailPage({ params }: PageProps) {
   const handleImageDragOver = (type: 'avatar' | 'header', e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(type)
+  }
+
+  const handleDeleteCategory = async () => {
+    setIsDeleting(true)
+    try {
+      const result = await deleteCategory(name)
+      if (result.success) {
+        toast.success(`Category "${name}" deleted (${result.data?.membershipsRemoved ?? 0} memberships removed)`)
+        queryClient.invalidateQueries({ queryKey: ['categories'] })
+        router.push('/categories')
+      } else {
+        toast.error(result.error || 'Failed to delete category')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete category')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+      setDeleteConfirmText('')
+    }
   }
 
   const handleImageUploadConfirm = async () => {
@@ -731,6 +758,20 @@ export default function CategoryDetailPage({ params }: PageProps) {
             <h2 className='mb-4 text-lg font-semibold'>Recent Activity</h2>
             <ActivitySection category={name} limit={10} />
           </div>
+
+          {/* Danger Zone */}
+          <div className='card border-error/30'>
+            <h2 className='mb-2 text-lg font-semibold text-error'>Danger Zone</h2>
+            <p className='text-neutral text-sm mb-4'>
+              Permanently delete this category, all {(category.name_count ?? 0).toLocaleString()} name memberships, and associated images.
+            </p>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className='btn btn-danger text-sm'
+            >
+              Delete Category
+            </button>
+          </div>
         </div>
 
         {/* Right column - Names */}
@@ -775,6 +816,19 @@ export default function CategoryDetailPage({ params }: PageProps) {
                     'Scan Invalid'
                   )}
                 </button>
+                {category.names && category.names.length > 0 && (
+                  <a
+                    href={`/api/cats/${encodeURIComponent(name)}/export`}
+                    download
+                    className='btn btn-secondary text-sm'
+                    title='Export all names as CSV'
+                  >
+                    <svg className='h-4 w-4' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' />
+                    </svg>
+                    Export
+                  </a>
+                )}
                 <button onClick={() => setShowAddForm(!showAddForm)} className='btn btn-primary text-sm'>
                   {showAddForm ? 'Cancel' : 'Add Names'}
                 </button>
@@ -1091,6 +1145,67 @@ export default function CategoryDetailPage({ params }: PageProps) {
         variant={confirmModal.type === 'remove' ? 'danger' : 'default'}
         isLoading={addNamesMutation.isPending || removeNamesMutation.isPending || updateMutation.isPending}
       />
+
+      {/* Delete Category Modal */}
+      {showDeleteModal && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center'>
+          <div
+            className='absolute inset-0 bg-black/50 backdrop-blur-sm'
+            onClick={isDeleting ? undefined : () => { setShowDeleteModal(false); setDeleteConfirmText('') }}
+          />
+          <div className='card relative z-10 w-full max-w-md shadow-xl'>
+            <div className='mb-4 flex justify-center'>
+              <div className='bg-error/10 flex h-12 w-12 items-center justify-center rounded-full'>
+                <svg className='text-error h-6 w-6' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' />
+                </svg>
+              </div>
+            </div>
+            <h2 className='mb-2 text-center text-lg font-semibold'>Delete Category</h2>
+            <div className='text-neutral mb-4 text-center text-sm'>
+              <p>This will permanently delete <strong className='text-foreground'>{name}</strong>, remove all <strong className='text-foreground'>{(category.name_count ?? 0).toLocaleString()}</strong> name memberships, and delete associated images.</p>
+              <p className='mt-2 text-error font-medium'>This action cannot be undone.</p>
+            </div>
+            <div className='mb-6'>
+              <label className='mb-2 block text-sm text-neutral'>
+                Type <strong className='text-foreground font-mono'>{name}</strong> to confirm:
+              </label>
+              <input
+                type='text'
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={name}
+                className='w-full font-mono text-sm'
+                autoFocus
+                disabled={isDeleting}
+              />
+            </div>
+            <div className='flex gap-3'>
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeleteConfirmText('') }}
+                className='btn btn-secondary flex-1'
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteCategory}
+                className='btn btn-danger flex-1'
+                disabled={deleteConfirmText !== name || isDeleting}
+              >
+                {isDeleting ? (
+                  <div className='flex items-center justify-center gap-2'>
+                    <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
+                    Deleting...
+                  </div>
+                ) : (
+                  'Delete Forever'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
