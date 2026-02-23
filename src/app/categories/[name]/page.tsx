@@ -510,21 +510,20 @@ export default function CategoryDetailPage({ params }: PageProps) {
           {/* Category header + Details */}
           <div className='card'>
             {/* Header */}
-            <h1 className='text-2xl font-bold'>{category.display_name || category.name}</h1>
-            {category.display_name && (
-              <p className='text-neutral text-sm font-mono'>{category.name}</p>
-            )}
-            <a
-              href={`https://grails.app/categories/${category.name}`}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='btn btn-secondary text-xs mt-2 inline-flex'
-            >
-              View on Grails
-              <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' />
-              </svg>
-            </a>
+            <div className='flex items-start justify-between gap-3'>
+              <h1 className='text-2xl font-bold'>{category.display_name || category.name}</h1>
+              <a
+                href={`https://grails.app/categories/${category.name}`}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='btn btn-secondary text-xs shrink-0'
+              >
+                View on Grails
+                <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' />
+                </svg>
+              </a>
+            </div>
 
             {/* Divider */}
             <div className='border-border my-4 border-t' />
@@ -609,38 +608,41 @@ export default function CategoryDetailPage({ params }: PageProps) {
                 </div>
               </div>
             ) : (
-              <div className='space-y-4'>
-                <div>
-                  <div className='flex items-center justify-between'>
-                    <p className='text-neutral text-sm'>Display Name</p>
-                    <button onClick={handleStartEdit} className='btn btn-secondary text-sm'>
-                      Edit
-                    </button>
+              <div className='space-y-3'>
+                <div className='flex items-center justify-between'>
+                  <div className='grid grid-cols-2 gap-x-4 flex-1 text-sm'>
+                    <div>
+                      <p className='text-neutral text-xs'>Display Name</p>
+                      <p>{category.display_name || <span className='text-neutral italic'>Same as slug</span>}</p>
+                    </div>
+                    <div>
+                      <p className='text-neutral text-xs'>Slug</p>
+                      <p className='font-mono'>{category.name}</p>
+                    </div>
                   </div>
-                  <p className='mt-1'>{category.display_name || <span className='text-neutral italic'>Same as slug</span>}</p>
+                  <button onClick={handleStartEdit} className='btn btn-secondary text-sm shrink-0'>
+                    Edit
+                  </button>
                 </div>
                 <div>
-                  <p className='text-neutral text-sm'>Description</p>
-                  <p className='mt-1'>{category.description || <span className='text-neutral italic'>No description</span>}</p>
+                  <p className='text-neutral text-xs'>Description</p>
+                  <p className='text-sm mt-0.5'>{category.description || <span className='text-neutral italic'>No description</span>}</p>
                 </div>
                 
-                <div>
-                  <p className='text-neutral text-sm mb-2'>Classifications</p>
-                  {category.classifications && category.classifications.length > 0 ? (
-                    <div className='flex flex-wrap gap-1.5'>
-                      {category.classifications.map((classification) => (
-                        <span
-                          key={classification}
-                          className='bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium'
-                        >
-                          {CLASSIFICATION_LABELS[classification as Classification] || classification}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className='text-neutral italic text-sm'>No classifications</p>
-                  )}
-                </div>
+                {category.classifications && category.classifications.length > 0 ? (
+                  <div className='flex flex-wrap gap-1.5'>
+                    {category.classifications.map((classification) => (
+                      <span
+                        key={classification}
+                        className='bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-medium'
+                      >
+                        {CLASSIFICATION_LABELS[classification as Classification] || classification}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className='text-neutral italic text-sm'>No classifications</p>
+                )}
               </div>
             )}
 
@@ -674,18 +676,33 @@ export default function CategoryDetailPage({ params }: PageProps) {
 
           {/* Images Section */}
           <div className='card'>
-            <h2 className='mb-4 text-lg font-semibold'>Images</h2>
-            <div className='space-y-4'>
+            <h2 className='mb-3 text-lg font-semibold'>Images</h2>
+            <div className='flex gap-4 items-start'>
               {/* Avatar */}
               <div
+                className='shrink-0 w-20'
                 onDrop={(e) => handleImageDrop('avatar', e)}
                 onDragOver={(e) => handleImageDragOver('avatar', e)}
                 onDragLeave={() => setDragOver(null)}
               >
-                <div className='flex items-center justify-between mb-2'>
-                  <p className='text-neutral text-sm'>Avatar</p>
-                  <label className='btn btn-secondary text-sm cursor-pointer'>
-                    {category.avatar_url ? 'Replace' : 'Upload'}
+                <p className='text-neutral text-xs mb-1'>Avatar</p>
+                {imageUploading === 'avatar' ? (
+                  <div className='flex h-20 w-20 items-center justify-center rounded-full border border-border'>
+                    <div className='h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+                  </div>
+                ) : category.avatar_url ? (
+                  <label className={`group relative block cursor-pointer rounded-full transition-all ${dragOver === 'avatar' ? 'ring-2 ring-primary' : ''}`}>
+                    <img
+                      src={`${category.avatar_url}&v=${imageCacheBuster}`}
+                      alt={`${category.name} avatar`}
+                      className='h-20 w-20 rounded-full border border-border object-cover'
+                    />
+                    <div className='absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'>
+                      <svg className='h-4 w-4 text-white' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}>
+                        <path strokeLinecap='round' strokeLinejoin='round' d='M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' />
+                      </svg>
+                      <span className='text-white text-[10px] font-medium'>Replace</span>
+                    </div>
                     <input
                       ref={avatarInputRef}
                       type='file'
@@ -699,36 +716,53 @@ export default function CategoryDetailPage({ params }: PageProps) {
                       disabled={imageUploading !== null}
                     />
                   </label>
-                </div>
-                {imageUploading === 'avatar' ? (
-                  <div className='flex h-24 w-24 items-center justify-center rounded-lg border border-border'>
-                    <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
-                  </div>
-                ) : category.avatar_url ? (
-                  <div className={`rounded-lg transition-all ${dragOver === 'avatar' ? 'ring-2 ring-primary' : ''}`}>
-                    <img
-                      src={`${category.avatar_url}&v=${imageCacheBuster}`}
-                      alt={`${category.name} avatar`}
-                      className='h-24 w-24 rounded-lg border border-border object-cover'
-                    />
-                  </div>
                 ) : (
-                  <div className={`flex h-24 w-24 items-center justify-center rounded-lg border-2 border-dashed transition-colors ${dragOver === 'avatar' ? 'border-primary bg-primary/10' : 'border-border'}`}>
-                    <span className='text-neutral text-xs'>{dragOver === 'avatar' ? 'Drop here' : 'No avatar'}</span>
-                  </div>
+                  <label className={`flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-full border-2 border-dashed transition-colors ${dragOver === 'avatar' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50 hover:bg-surface-2'}`}>
+                    <svg className='h-5 w-5 text-neutral mb-0.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1.5} d='M12 4v16m8-8H4' />
+                    </svg>
+                    <span className='text-neutral text-[10px]'>{dragOver === 'avatar' ? 'Drop' : 'Upload'}</span>
+                    <input
+                      ref={avatarInputRef}
+                      type='file'
+                      accept='image/jpeg,image/png'
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleImageSelect('avatar', file)
+                        if (avatarInputRef.current) avatarInputRef.current.value = ''
+                      }}
+                      className='sr-only'
+                      disabled={imageUploading !== null}
+                    />
+                  </label>
                 )}
               </div>
 
               {/* Header */}
               <div
+                className='flex-1 min-w-0'
                 onDrop={(e) => handleImageDrop('header', e)}
                 onDragOver={(e) => handleImageDragOver('header', e)}
                 onDragLeave={() => setDragOver(null)}
               >
-                <div className='flex items-center justify-between mb-2'>
-                  <p className='text-neutral text-sm'>Header</p>
-                  <label className='btn btn-secondary text-sm cursor-pointer'>
-                    {category.header_url ? 'Replace' : 'Upload'}
+                <p className='text-neutral text-xs mb-1'>Header</p>
+                {imageUploading === 'header' ? (
+                  <div className='flex h-20 w-full items-center justify-center rounded-lg border border-border'>
+                    <div className='h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+                  </div>
+                ) : category.header_url ? (
+                  <label className={`group relative block cursor-pointer rounded-lg transition-all ${dragOver === 'header' ? 'ring-2 ring-primary' : ''}`}>
+                    <img
+                      src={`${category.header_url}&v=${imageCacheBuster}`}
+                      alt={`${category.name} header`}
+                      className='w-full rounded-lg border border-border'
+                    />
+                    <div className='absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'>
+                      <svg className='h-4 w-4 text-white' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}>
+                        <path strokeLinecap='round' strokeLinejoin='round' d='M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' />
+                      </svg>
+                      <span className='text-white text-[10px] font-medium'>Replace</span>
+                    </div>
                     <input
                       ref={headerInputRef}
                       type='file'
@@ -742,23 +776,25 @@ export default function CategoryDetailPage({ params }: PageProps) {
                       disabled={imageUploading !== null}
                     />
                   </label>
-                </div>
-                {imageUploading === 'header' ? (
-                  <div className='flex h-32 w-full items-center justify-center rounded-lg border border-border'>
-                    <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
-                  </div>
-                ) : category.header_url ? (
-                  <div className={`rounded-lg transition-all ${dragOver === 'header' ? 'ring-2 ring-primary' : ''}`}>
-                    <img
-                      src={`${category.header_url}&v=${imageCacheBuster}`}
-                      alt={`${category.name} header`}
-                      className='w-full rounded-lg border border-border'
-                    />
-                  </div>
                 ) : (
-                  <div className={`flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed transition-colors ${dragOver === 'header' ? 'border-primary bg-primary/10' : 'border-border'}`}>
-                    <span className='text-neutral text-xs'>{dragOver === 'header' ? 'Drop here' : 'No header'}</span>
-                  </div>
+                  <label className={`flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors ${dragOver === 'header' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50 hover:bg-surface-2'}`}>
+                    <svg className='h-5 w-5 text-neutral mb-0.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1.5} d='M12 4v16m8-8H4' />
+                    </svg>
+                    <span className='text-neutral text-[10px]'>{dragOver === 'header' ? 'Drop' : 'Upload'}</span>
+                    <input
+                      ref={headerInputRef}
+                      type='file'
+                      accept='image/jpeg,image/png'
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleImageSelect('header', file)
+                        if (headerInputRef.current) headerInputRef.current.value = ''
+                      }}
+                      className='sr-only'
+                      disabled={imageUploading !== null}
+                    />
+                  </label>
                 )}
               </div>
             </div>
