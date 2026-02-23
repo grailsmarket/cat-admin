@@ -259,6 +259,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       }, { status: 503 })
     }
 
-    return NextResponse.json({ error: 'Failed to delete category' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: `Failed to delete category: ${message}` }, { status: 500 })
   }
 }
