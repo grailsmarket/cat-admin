@@ -514,6 +514,17 @@ export default function CategoryDetailPage({ params }: PageProps) {
             {category.display_name && (
               <p className='text-neutral text-sm font-mono'>{category.name}</p>
             )}
+            <a
+              href={`https://grails.app/categories/${category.name}`}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='btn btn-secondary text-xs mt-2 inline-flex'
+            >
+              View on Grails
+              <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' />
+              </svg>
+            </a>
 
             {/* Divider */}
             <div className='border-border my-4 border-t' />
@@ -602,7 +613,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
                 <div>
                   <div className='flex items-center justify-between'>
                     <p className='text-neutral text-sm'>Display Name</p>
-                    <button onClick={handleStartEdit} className='text-primary hover:underline text-sm'>
+                    <button onClick={handleStartEdit} className='btn btn-secondary text-sm'>
                       Edit
                     </button>
                   </div>
@@ -673,7 +684,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
               >
                 <div className='flex items-center justify-between mb-2'>
                   <p className='text-neutral text-sm'>Avatar</p>
-                  <label className='text-primary hover:underline text-sm cursor-pointer'>
+                  <label className='btn btn-secondary text-sm cursor-pointer'>
                     {category.avatar_url ? 'Replace' : 'Upload'}
                     <input
                       ref={avatarInputRef}
@@ -716,7 +727,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
               >
                 <div className='flex items-center justify-between mb-2'>
                   <p className='text-neutral text-sm'>Header</p>
-                  <label className='text-primary hover:underline text-sm cursor-pointer'>
+                  <label className='btn btn-secondary text-sm cursor-pointer'>
                     {category.header_url ? 'Replace' : 'Upload'}
                     <input
                       ref={headerInputRef}
@@ -879,7 +890,7 @@ export default function CategoryDetailPage({ params }: PageProps) {
                           <td className='text-right'>
                             <button
                               onClick={() => handleRemoveInvalidNames([entry.name])}
-                              className='text-error hover:underline text-xs'
+                              className='btn btn-danger text-xs'
                               disabled={removeNamesMutation.isPending}
                             >
                               Remove
@@ -988,8 +999,8 @@ export default function CategoryDetailPage({ params }: PageProps) {
               <div className='py-8 text-center'>
                 <p className='text-neutral'>No names in this category yet.</p>
                 {!showAddForm && (
-                  <button onClick={() => setShowAddForm(true)} className='text-primary hover:underline mt-2 text-sm'>
-                    Add your first names
+                  <button onClick={() => setShowAddForm(true)} className='btn btn-primary mt-2 text-sm'>
+                    Add Names
                   </button>
                 )}
               </div>

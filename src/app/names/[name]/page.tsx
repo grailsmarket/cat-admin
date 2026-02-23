@@ -212,7 +212,7 @@ export default function NameDetailPage({ params }: PageProps) {
                     href={`https://grails.app/${ensName.name}`}
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-primary hover:underline inline-flex items-center gap-1 text-xs mt-1'
+                    className='btn btn-secondary text-xs mt-2 inline-flex'
                   >
                     View on Grails
                     <svg className='h-3 w-3' fill='none' viewBox='0 0 24 24' stroke='currentColor'>

@@ -37,10 +37,10 @@ const Providers: React.FC<ProviderProps> = ({ children, initialState }) => {
                     justifyContent: 'center',
                   },
                   classNames: {
-                    success: '!bg-success/15 !border-success/40 !text-success',
-                    error: '!bg-error/15 !border-error/40 !text-error',
-                    warning: '!bg-warning/15 !border-warning/40 !text-warning',
-                    info: '!bg-primary/15 !border-primary/40 !text-primary',
+                    success: '!bg-[#0a2614] !border-success/40 !text-success',
+                    error: '!bg-[#2a0a0a] !border-error/40 !text-error',
+                    warning: '!bg-[#2a2200] !border-warning/40 !text-warning',
+                    info: '!bg-[#0a1a2e] !border-primary/40 !text-primary',
                   },
                 }}
               />

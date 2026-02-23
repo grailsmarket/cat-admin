@@ -146,7 +146,7 @@ export default function DashboardPage() {
           <div className='card'>
             <div className='flex items-center justify-between mb-4'>
               <h2 className='text-lg font-semibold'>Recently Created</h2>
-              <Link href='/categories' className='text-primary text-sm hover:underline'>
+              <Link href='/categories' className='btn btn-secondary text-sm'>
                 View all →
               </Link>
             </div>
@@ -188,7 +188,7 @@ export default function DashboardPage() {
           <div className='card'>
             <div className='flex items-center justify-between mb-4'>
               <h2 className='text-lg font-semibold'>Recent Activity</h2>
-              <Link href='/activity' className='text-primary text-sm hover:underline'>
+              <Link href='/activity' className='btn btn-secondary text-sm'>
                 View all →
               </Link>
             </div>
