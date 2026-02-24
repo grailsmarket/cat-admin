@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
-import { createCategory, addNames, fetchCategories } from '@/api/categories'
+import { createCategory, fetchCategories } from '@/api/categories'
 import { normalizeEnsName } from '@/lib/normalize'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import { VALID_CLASSIFICATIONS, CLASSIFICATION_LABELS, type Classification } from '@/constants/classifications'
@@ -101,44 +101,27 @@ export default function NewCategoryPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      const validNames = parsedNames
+        .filter(n => n.isValid && n.normalized)
+        .map(n => n.normalized as string)
+
       const result = await createCategory(slug, {
         display_name: displayName || undefined,
         description: description || undefined,
         classifications: classifications.length > 0 ? classifications : undefined,
         avatar: avatarFile || undefined,
         header: headerFile || undefined,
+        names: validNames.length > 0 ? validNames : undefined,
       })
       if (!result.success) {
         throw new Error(result.error || 'Failed to create category')
       }
 
-      const validNames = parsedNames
-        .filter(n => n.isValid && n.normalized)
-        .map(n => n.normalized as string)
-
-      if (validNames.length > 0) {
-        try {
-          const addResult = await addNames(slug, validNames)
-          if (!addResult.success) {
-            return { ...result, memberError: addResult.error || 'Failed to add names' }
-          }
-        } catch (addError) {
-          return {
-            ...result,
-            memberError: addError instanceof Error ? addError.message : 'Failed to add names',
-          }
-        }
-      }
-
       return result
     },
-    onSuccess: (result) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
-      if ('memberError' in result) {
-        router.push(`/categories/${slug}?warning=member_error`)
-      } else {
-        router.push(`/categories/${slug}`)
-      }
+      router.push(`/categories/${slug}`)
     },
     onError: (err: Error) => {
       toast.error(err.message)

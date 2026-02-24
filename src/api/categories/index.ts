@@ -38,6 +38,7 @@ export async function createCategory(
     classifications?: string[]
     avatar?: File
     header?: File
+    names?: string[]
   }
 ): Promise<CreateCategoryResponse> {
   const formData = new FormData()
@@ -46,6 +47,9 @@ export async function createCategory(
   if (options.description) formData.append('description', options.description)
   if (options.classifications?.length) {
     formData.append('classifications', JSON.stringify(options.classifications))
+  }
+  if (options.names?.length) {
+    formData.append('names', JSON.stringify(options.names))
   }
   if (options.avatar) formData.append('avatar', options.avatar)
   if (options.header) formData.append('header', options.header)
