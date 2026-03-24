@@ -100,8 +100,8 @@ export async function POST(request: NextRequest) {
       : []
 
     // Parse and normalize ENS names if provided
-    let normalizedNames: string[] = []
-    let invalidNames: string[] = []
+    const normalizedNames: string[] = []
+    const invalidNames: string[] = []
     if (namesJson) {
       let rawNames: unknown = []
       try {
