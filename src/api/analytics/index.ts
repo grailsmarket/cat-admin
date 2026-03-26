@@ -19,6 +19,52 @@ export type AnalyticsData = {
   }
 }
 
+export type RequestAnalyticsData = {
+  from: string
+  to: string
+  summary: {
+    totalRequests: number
+    uniqueUsers: number
+    uniqueRoutes: number
+  }
+  daily: Array<{ date: string; total: number }>
+  topRoutes: Array<{ route: string; requestCount: number; uniqueUsers: number }>
+  topUsers: Array<{ address: string; userId: number; requestCount: number; uniqueRoutes: number }>
+  userDrilldown?: {
+    address: string
+    routes: Array<{ route: string; requestCount: number }>
+    daily: Array<{ date: string; total: number }>
+  }
+}
+
+export async function fetchRequestAnalytics(
+  from: string,
+  to: string,
+  user?: string
+): Promise<{ success: boolean; data?: RequestAnalyticsData; error?: string }> {
+  try {
+    let url = `/api/analytics/requests?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    if (user) {
+      url += `&user=${encodeURIComponent(user)}`
+    }
+
+    const response = await fetch(url, { credentials: 'include' })
+
+    if (!response.ok) {
+      const error = await response.json()
+      return { success: false, error: error.error || 'Failed to fetch request analytics' }
+    }
+
+    const result = await response.json()
+    return { success: true, data: result.data }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch request analytics',
+    }
+  }
+}
+
 export async function fetchRegistrationAnalytics(
   from: string,
   to: string
