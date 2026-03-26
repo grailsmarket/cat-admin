@@ -54,7 +54,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
         <div className='flex items-center gap-3'>
           <Image
             src='/logo.png'
-            alt='Cat Admin'
+            alt='Grails Admin'
             width={48}
             height={48}
             className='h-12 w-12'
@@ -62,8 +62,8 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             unoptimized
           />
           <div className='flex-1 min-w-0'>
-            <h1 className='text-xl font-bold'>Cat Admin</h1>
-            <p className='text-neutral text-sm'>Grails Category Management</p>
+            <h1 className='text-xl font-bold'>Grails Admin</h1>
+            <p className='text-neutral text-sm'>Management Console</p>
           </div>
           {/* Mobile close button */}
           <button
