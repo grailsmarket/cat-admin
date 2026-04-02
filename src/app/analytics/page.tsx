@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchRegistrationAnalytics } from '@/api/analytics'
 import { SOURCE_NAMES, SOURCE_COLORS, type SourceName } from '@/constants/referrers'
-import AnalyticsChart from '@/components/AnalyticsChart'
+import AnalyticsChart, { type DataMode } from '@/components/AnalyticsChart'
 
 function toISODate(date: Date): string {
   return date.toISOString().split('T')[0]
@@ -43,7 +43,7 @@ export default function AnalyticsPage() {
   const [showRegistrations, setShowRegistrations] = useState(true)
   const [showRenewals, setShowRenewals] = useState(true)
   const [chartType, setChartType] = useState<'line' | 'bar'>('line')
-  const [dataMode, setDataMode] = useState<'counts' | 'cost'>('counts')
+  const [dataMode, setDataMode] = useState<DataMode>('counts')
   const [visibleSources, setVisibleSources] = useState<Record<SourceName, boolean>>(
     () => Object.fromEntries(SOURCE_NAMES.map((s) => [s, true])) as Record<SourceName, boolean>
   )
@@ -184,6 +184,12 @@ export default function AnalyticsPage() {
               >
                 ETH Spent
               </button>
+              <button
+                onClick={() => setDataMode('duration')}
+                className={`btn text-sm ${dataMode === 'duration' ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                Duration
+              </button>
             </div>
           </div>
 
@@ -211,46 +217,46 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className='mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4'>
-        <div className='card'>
-          <p className='text-neutral text-sm font-medium'>Total Registrations</p>
+      <div className='mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4'>
+        <div className='card !py-2'>
+          <p className='text-neutral text-xs font-medium'>Total Registrations</p>
           {isLoading ? (
-            <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
+            <div className='mt-1 h-7 w-16 animate-pulse rounded bg-tertiary' />
           ) : (
-            <p className='mt-1 text-3xl font-bold'>
+            <p className='mt-0.5 text-2xl font-bold'>
               {(summary?.totalRegistrations ?? 0).toLocaleString()}
             </p>
           )}
         </div>
-        <div className='card'>
-          <p className='text-neutral text-sm font-medium'>Total Renewals</p>
+        <div className='card !py-2'>
+          <p className='text-neutral text-xs font-medium'>Total Renewals</p>
           {isLoading ? (
-            <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
+            <div className='mt-1 h-7 w-16 animate-pulse rounded bg-tertiary' />
           ) : (
-            <p className='mt-1 text-3xl font-bold'>
+            <p className='mt-0.5 text-2xl font-bold'>
               {(summary?.totalRenewals ?? 0).toLocaleString()}
             </p>
           )}
         </div>
-        <div className='card'>
-          <p className='text-neutral text-sm font-medium'>Registration Cost</p>
+        <div className='card !py-2'>
+          <p className='text-neutral text-xs font-medium'>Registration Cost</p>
           {isLoading ? (
-            <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
+            <div className='mt-1 h-7 w-16 animate-pulse rounded bg-tertiary' />
           ) : (
-            <p className='mt-1 text-3xl font-bold'>
+            <p className='mt-0.5 text-2xl font-bold'>
               {(summary?.totalRegistrationCostEth ?? 0).toFixed(2)}
-              <span className='text-lg font-normal text-neutral'> ETH</span>
+              <span className='text-sm font-normal text-neutral'> ETH</span>
             </p>
           )}
         </div>
-        <div className='card'>
-          <p className='text-neutral text-sm font-medium'>Renewal Cost</p>
+        <div className='card !py-2'>
+          <p className='text-neutral text-xs font-medium'>Renewal Cost</p>
           {isLoading ? (
-            <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
+            <div className='mt-1 h-7 w-16 animate-pulse rounded bg-tertiary' />
           ) : (
-            <p className='mt-1 text-3xl font-bold'>
+            <p className='mt-0.5 text-2xl font-bold'>
               {(summary?.totalRenewalCostEth ?? 0).toFixed(2)}
-              <span className='text-lg font-normal text-neutral'> ETH</span>
+              <span className='text-sm font-normal text-neutral'> ETH</span>
             </p>
           )}
         </div>
@@ -259,7 +265,7 @@ export default function AnalyticsPage() {
       {/* Chart */}
       <div className='card'>
         <h2 className='mb-4 text-lg font-semibold'>
-          {dataMode === 'cost' ? 'ETH Spent Over Time' : 'Volume Over Time'}
+          {dataMode === 'cost' ? 'ETH Spent Over Time' : dataMode === 'duration' ? 'Duration Over Time' : 'Volume Over Time'}
         </h2>
         {isLoading ? (
           <div className='h-[400px] animate-pulse rounded bg-tertiary' />
@@ -273,6 +279,8 @@ export default function AnalyticsPage() {
             renewals={analyticsData.renewals}
             registrationsCost={analyticsData.registrationsCost}
             renewalsCost={analyticsData.renewalsCost}
+            registrationsDuration={analyticsData.registrationsDuration}
+            renewalsDuration={analyticsData.renewalsDuration}
             bucket={analyticsData.bucket}
             visibleSources={visibleSources}
             showRegistrations={showRegistrations}

@@ -64,7 +64,9 @@ export async function GET(request: NextRequest) {
 
   const sourceCaseExpr = buildReferrerCaseExpression()
 
-  const buildQuery = (table: string, dateColumn: string, costColumn: string) => `
+  const SECONDS_PER_YEAR = 365.25 * 24 * 60 * 60
+
+  const buildQuery = (table: string, dateColumn: string, costColumn: string, durationExpr: string) => `
     WITH time_series AS (
       SELECT generate_series(
         DATE_TRUNC('${truncUnit}', $1::timestamptz),
@@ -76,6 +78,7 @@ export async function GET(request: NextRequest) {
       SELECT
         ${dateColumn},
         ${costColumn},
+        (${durationExpr}) AS duration_secs,
         ${sourceCaseExpr} AS source
       FROM ${table}
       WHERE ${dateColumn} >= $1::timestamptz
@@ -97,7 +100,14 @@ export async function GET(request: NextRequest) {
         COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'snipezone'), 0) / 1e18 AS snipezone_cost_eth,
         COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'enstools'), 0) / 1e18 AS enstools_cost_eth,
         COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'rotki'), 0) / 1e18 AS rotki_cost_eth,
-        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'direct'), 0) / 1e18 AS direct_cost_eth
+        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'direct'), 0) / 1e18 AS direct_cost_eth,
+        COALESCE(SUM(duration_secs), 0) / ${SECONDS_PER_YEAR} AS total_duration_years,
+        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'grails'), 0) / ${SECONDS_PER_YEAR} AS grails_duration_years,
+        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'vision'), 0) / ${SECONDS_PER_YEAR} AS vision_duration_years,
+        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'snipezone'), 0) / ${SECONDS_PER_YEAR} AS snipezone_duration_years,
+        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'enstools'), 0) / ${SECONDS_PER_YEAR} AS enstools_duration_years,
+        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'rotki'), 0) / ${SECONDS_PER_YEAR} AS rotki_duration_years,
+        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'direct'), 0) / ${SECONDS_PER_YEAR} AS direct_duration_years
       FROM source_mapped
       GROUP BY DATE_TRUNC('${truncUnit}', ${dateColumn})
     )
@@ -116,7 +126,14 @@ export async function GET(request: NextRequest) {
       COALESCE(g.snipezone_cost_eth, 0)::float AS snipezone_cost_eth,
       COALESCE(g.enstools_cost_eth, 0)::float AS enstools_cost_eth,
       COALESCE(g.rotki_cost_eth, 0)::float AS rotki_cost_eth,
-      COALESCE(g.direct_cost_eth, 0)::float AS direct_cost_eth
+      COALESCE(g.direct_cost_eth, 0)::float AS direct_cost_eth,
+      COALESCE(g.total_duration_years, 0)::float AS total_duration_years,
+      COALESCE(g.grails_duration_years, 0)::float AS grails_duration_years,
+      COALESCE(g.vision_duration_years, 0)::float AS vision_duration_years,
+      COALESCE(g.snipezone_duration_years, 0)::float AS snipezone_duration_years,
+      COALESCE(g.enstools_duration_years, 0)::float AS enstools_duration_years,
+      COALESCE(g.rotki_duration_years, 0)::float AS rotki_duration_years,
+      COALESCE(g.direct_duration_years, 0)::float AS direct_duration_years
     FROM time_series ts
     LEFT JOIN grouped g ON ts.date = g.date
     ORDER BY ts.date ASC`
@@ -126,8 +143,19 @@ export async function GET(request: NextRequest) {
     const params = [fromDate.toISOString(), toDate.toISOString()]
 
     const [registrationsResult, renewalsResult] = await Promise.all([
-      pool.query(buildQuery('registrations', 'registration_date', 'total_cost_wei'), params),
-      pool.query(buildQuery('renewals', 'renewal_date', 'cost_wei'), params),
+      pool.query(
+        buildQuery(
+          'registrations',
+          'registration_date',
+          'total_cost_wei',
+          'EXTRACT(EPOCH FROM (expiry_date - registration_date))'
+        ),
+        params
+      ),
+      pool.query(
+        buildQuery('renewals', 'renewal_date', 'cost_wei', 'duration_seconds'),
+        params
+      ),
     ])
 
     const mapRows = (rows: Array<Record<string, unknown>>) =>
@@ -154,10 +182,24 @@ export async function GET(request: NextRequest) {
         direct: row.direct_cost_eth as number,
       }))
 
+    const mapDurationRows = (rows: Array<Record<string, unknown>>) =>
+      rows.map((row) => ({
+        date: (row.date as Date).toISOString(),
+        total: row.total_duration_years as number,
+        grails: row.grails_duration_years as number,
+        vision: row.vision_duration_years as number,
+        snipezone: row.snipezone_duration_years as number,
+        enstools: row.enstools_duration_years as number,
+        rotki: row.rotki_duration_years as number,
+        direct: row.direct_duration_years as number,
+      }))
+
     const registrations = mapRows(registrationsResult.rows)
     const renewals = mapRows(renewalsResult.rows)
     const registrationsCost = mapCostRows(registrationsResult.rows)
     const renewalsCost = mapCostRows(renewalsResult.rows)
+    const registrationsDuration = mapDurationRows(registrationsResult.rows)
+    const renewalsDuration = mapDurationRows(renewalsResult.rows)
 
     const sumBySource = (rows: typeof registrations) => {
       const result: Record<string, number> = {}
@@ -177,11 +219,15 @@ export async function GET(request: NextRequest) {
         renewals,
         registrationsCost,
         renewalsCost,
+        registrationsDuration,
+        renewalsDuration,
         summary: {
           totalRegistrations: registrations.reduce((sum, r) => sum + r.total, 0),
           totalRenewals: renewals.reduce((sum, r) => sum + r.total, 0),
           totalRegistrationCostEth: registrationsCost.reduce((sum, r) => sum + r.total, 0),
           totalRenewalCostEth: renewalsCost.reduce((sum, r) => sum + r.total, 0),
+          totalRegistrationDurationYears: registrationsDuration.reduce((sum, r) => sum + r.total, 0),
+          totalRenewalDurationYears: renewalsDuration.reduce((sum, r) => sum + r.total, 0),
           registrationsBySource: sumBySource(registrations),
           renewalsBySource: sumBySource(renewals),
         },

@@ -14,19 +14,23 @@ import {
 } from 'recharts'
 import type { Payload } from 'recharts/types/component/DefaultTooltipContent'
 import { SOURCE_NAMES, SOURCE_COLORS, type SourceName } from '@/constants/referrers'
-import type { SourceBreakdown, CostBreakdown } from '@/api/analytics'
+import type { SourceBreakdown, CostBreakdown, DurationBreakdown } from '@/api/analytics'
+
+export type DataMode = 'counts' | 'cost' | 'duration'
 
 type AnalyticsChartProps = {
   registrations: SourceBreakdown[]
   renewals: SourceBreakdown[]
   registrationsCost: CostBreakdown[]
   renewalsCost: CostBreakdown[]
+  registrationsDuration: DurationBreakdown[]
+  renewalsDuration: DurationBreakdown[]
   bucket: 'hour' | 'day' | 'week'
   visibleSources: Record<SourceName, boolean>
   showRegistrations: boolean
   showRenewals: boolean
   chartType: 'line' | 'bar'
-  dataMode: 'counts' | 'cost'
+  dataMode: DataMode
 }
 
 type MergedDataPoint = {
@@ -51,9 +55,16 @@ function CustomTooltip({
   active?: boolean
   payload?: ReadonlyArray<Payload<number, string>>
   label?: string
-  dataMode: 'counts' | 'cost'
+  dataMode: DataMode
 }) {
   if (!active || !payload || payload.length === 0) return null
+
+  const formatValue = (value: number | undefined) => {
+    if (value === undefined) return '0'
+    if (dataMode === 'cost') return `${value.toFixed(4)} ETH`
+    if (dataMode === 'duration') return `${value.toFixed(2)} yrs`
+    return value.toLocaleString()
+  }
 
   return (
     <div className='rounded-lg border border-border bg-secondary p-3 shadow-lg'>
@@ -75,11 +86,7 @@ function CustomTooltip({
                 style={{ backgroundColor: entry.color }}
               />
               <span className='text-neutral'>{entry.name}:</span>
-              <span className='font-medium'>
-                {dataMode === 'cost'
-                  ? `${entry.value?.toFixed(4)} ETH`
-                  : entry.value?.toLocaleString()}
-              </span>
+              <span className='font-medium'>{formatValue(entry.value)}</span>
             </div>
           ))}
       </div>
@@ -92,6 +99,8 @@ export default function AnalyticsChart({
   renewals,
   registrationsCost,
   renewalsCost,
+  registrationsDuration,
+  renewalsDuration,
   bucket,
   visibleSources,
   showRegistrations,
@@ -100,8 +109,18 @@ export default function AnalyticsChart({
   dataMode,
 }: AnalyticsChartProps) {
   const mergedData = useMemo(() => {
-    const regData = dataMode === 'cost' ? registrationsCost : registrations
-    const renData = dataMode === 'cost' ? renewalsCost : renewals
+    const regData =
+      dataMode === 'cost'
+        ? registrationsCost
+        : dataMode === 'duration'
+          ? registrationsDuration
+          : registrations
+    const renData =
+      dataMode === 'cost'
+        ? renewalsCost
+        : dataMode === 'duration'
+          ? renewalsDuration
+          : renewals
 
     const dateMap = new Map<string, MergedDataPoint>()
 
@@ -124,7 +143,7 @@ export default function AnalyticsChart({
     return Array.from(dateMap.values()).sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     )
-  }, [registrations, renewals, registrationsCost, renewalsCost, dataMode])
+  }, [registrations, renewals, registrationsCost, renewalsCost, registrationsDuration, renewalsDuration, dataMode])
 
   const hasAnyData = mergedData.some((point) =>
     SOURCE_NAMES.some(
@@ -155,9 +174,13 @@ export default function AnalyticsChart({
       <YAxis
         stroke='var(--neutral)'
         tick={{ fill: 'var(--neutral)', fontSize: 12 }}
-        allowDecimals={dataMode === 'cost'}
+        allowDecimals={dataMode !== 'counts'}
         tickFormatter={
-          dataMode === 'cost' ? (value: number) => `${value.toFixed(2)}` : undefined
+          dataMode === 'cost'
+            ? (value: number) => `${value.toFixed(2)}`
+            : dataMode === 'duration'
+              ? (value: number) => `${value.toFixed(1)}y`
+              : undefined
         }
       />
       <Tooltip content={<CustomTooltip dataMode={dataMode} />} />
