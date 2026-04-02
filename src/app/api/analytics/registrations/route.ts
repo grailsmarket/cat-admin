@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 
   const sourceCaseExpr = buildReferrerCaseExpression()
 
-  const buildQuery = (table: string, dateColumn: string) => `
+  const buildQuery = (table: string, dateColumn: string, costColumn: string) => `
     WITH time_series AS (
       SELECT generate_series(
         DATE_TRUNC('${truncUnit}', $1::timestamptz),
@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
     source_mapped AS (
       SELECT
         ${dateColumn},
+        ${costColumn},
         ${sourceCaseExpr} AS source
       FROM ${table}
       WHERE ${dateColumn} >= $1::timestamptz
@@ -89,7 +90,14 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE source = 'snipezone') AS snipezone,
         COUNT(*) FILTER (WHERE source = 'enstools') AS enstools,
         COUNT(*) FILTER (WHERE source = 'rotki') AS rotki,
-        COUNT(*) FILTER (WHERE source = 'direct') AS direct
+        COUNT(*) FILTER (WHERE source = 'direct') AS direct,
+        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric), 0) / 1e18 AS total_cost_eth,
+        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'grails'), 0) / 1e18 AS grails_cost_eth,
+        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'vision'), 0) / 1e18 AS vision_cost_eth,
+        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'snipezone'), 0) / 1e18 AS snipezone_cost_eth,
+        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'enstools'), 0) / 1e18 AS enstools_cost_eth,
+        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'rotki'), 0) / 1e18 AS rotki_cost_eth,
+        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'direct'), 0) / 1e18 AS direct_cost_eth
       FROM source_mapped
       GROUP BY DATE_TRUNC('${truncUnit}', ${dateColumn})
     )
@@ -101,7 +109,14 @@ export async function GET(request: NextRequest) {
       COALESCE(g.snipezone, 0)::int AS snipezone,
       COALESCE(g.enstools, 0)::int AS enstools,
       COALESCE(g.rotki, 0)::int AS rotki,
-      COALESCE(g.direct, 0)::int AS direct
+      COALESCE(g.direct, 0)::int AS direct,
+      COALESCE(g.total_cost_eth, 0)::float AS total_cost_eth,
+      COALESCE(g.grails_cost_eth, 0)::float AS grails_cost_eth,
+      COALESCE(g.vision_cost_eth, 0)::float AS vision_cost_eth,
+      COALESCE(g.snipezone_cost_eth, 0)::float AS snipezone_cost_eth,
+      COALESCE(g.enstools_cost_eth, 0)::float AS enstools_cost_eth,
+      COALESCE(g.rotki_cost_eth, 0)::float AS rotki_cost_eth,
+      COALESCE(g.direct_cost_eth, 0)::float AS direct_cost_eth
     FROM time_series ts
     LEFT JOIN grouped g ON ts.date = g.date
     ORDER BY ts.date ASC`
@@ -111,8 +126,8 @@ export async function GET(request: NextRequest) {
     const params = [fromDate.toISOString(), toDate.toISOString()]
 
     const [registrationsResult, renewalsResult] = await Promise.all([
-      pool.query(buildQuery('registrations', 'registration_date'), params),
-      pool.query(buildQuery('renewals', 'renewal_date'), params),
+      pool.query(buildQuery('registrations', 'registration_date', 'total_cost_wei'), params),
+      pool.query(buildQuery('renewals', 'renewal_date', 'cost_wei'), params),
     ])
 
     const mapRows = (rows: Array<Record<string, unknown>>) =>
@@ -127,8 +142,22 @@ export async function GET(request: NextRequest) {
         direct: row.direct as number,
       }))
 
+    const mapCostRows = (rows: Array<Record<string, unknown>>) =>
+      rows.map((row) => ({
+        date: (row.date as Date).toISOString(),
+        total: row.total_cost_eth as number,
+        grails: row.grails_cost_eth as number,
+        vision: row.vision_cost_eth as number,
+        snipezone: row.snipezone_cost_eth as number,
+        enstools: row.enstools_cost_eth as number,
+        rotki: row.rotki_cost_eth as number,
+        direct: row.direct_cost_eth as number,
+      }))
+
     const registrations = mapRows(registrationsResult.rows)
     const renewals = mapRows(renewalsResult.rows)
+    const registrationsCost = mapCostRows(registrationsResult.rows)
+    const renewalsCost = mapCostRows(renewalsResult.rows)
 
     const sumBySource = (rows: typeof registrations) => {
       const result: Record<string, number> = {}
@@ -146,9 +175,13 @@ export async function GET(request: NextRequest) {
         bucket: truncUnit,
         registrations,
         renewals,
+        registrationsCost,
+        renewalsCost,
         summary: {
           totalRegistrations: registrations.reduce((sum, r) => sum + r.total, 0),
           totalRenewals: renewals.reduce((sum, r) => sum + r.total, 0),
+          totalRegistrationCostEth: registrationsCost.reduce((sum, r) => sum + r.total, 0),
+          totalRenewalCostEth: renewalsCost.reduce((sum, r) => sum + r.total, 0),
           registrationsBySource: sumBySource(registrations),
           renewalsBySource: sumBySource(renewals),
         },

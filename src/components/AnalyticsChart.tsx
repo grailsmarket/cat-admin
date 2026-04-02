@@ -1,10 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import {
   ResponsiveContainer,
   LineChart,
   Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,15 +14,19 @@ import {
 } from 'recharts'
 import type { Payload } from 'recharts/types/component/DefaultTooltipContent'
 import { SOURCE_NAMES, SOURCE_COLORS, type SourceName } from '@/constants/referrers'
-import type { SourceBreakdown } from '@/api/analytics'
+import type { SourceBreakdown, CostBreakdown } from '@/api/analytics'
 
 type AnalyticsChartProps = {
   registrations: SourceBreakdown[]
   renewals: SourceBreakdown[]
+  registrationsCost: CostBreakdown[]
+  renewalsCost: CostBreakdown[]
   bucket: 'hour' | 'day' | 'week'
   visibleSources: Record<SourceName, boolean>
   showRegistrations: boolean
   showRenewals: boolean
+  chartType: 'line' | 'bar'
+  dataMode: 'counts' | 'cost'
 }
 
 type MergedDataPoint = {
@@ -40,10 +46,12 @@ function CustomTooltip({
   active,
   payload,
   label,
+  dataMode,
 }: {
   active?: boolean
   payload?: ReadonlyArray<Payload<number, string>>
   label?: string
+  dataMode: 'counts' | 'cost'
 }) {
   if (!active || !payload || payload.length === 0) return null
 
@@ -67,7 +75,11 @@ function CustomTooltip({
                 style={{ backgroundColor: entry.color }}
               />
               <span className='text-neutral'>{entry.name}:</span>
-              <span className='font-medium'>{entry.value?.toLocaleString()}</span>
+              <span className='font-medium'>
+                {dataMode === 'cost'
+                  ? `${entry.value?.toFixed(4)} ETH`
+                  : entry.value?.toLocaleString()}
+              </span>
             </div>
           ))}
       </div>
@@ -78,15 +90,22 @@ function CustomTooltip({
 export default function AnalyticsChart({
   registrations,
   renewals,
+  registrationsCost,
+  renewalsCost,
   bucket,
   visibleSources,
   showRegistrations,
   showRenewals,
+  chartType,
+  dataMode,
 }: AnalyticsChartProps) {
   const mergedData = useMemo(() => {
+    const regData = dataMode === 'cost' ? registrationsCost : registrations
+    const renData = dataMode === 'cost' ? renewalsCost : renewals
+
     const dateMap = new Map<string, MergedDataPoint>()
 
-    for (const row of registrations) {
+    for (const row of regData) {
       const point: MergedDataPoint = dateMap.get(row.date) || { date: row.date }
       for (const source of SOURCE_NAMES) {
         point[`reg_${source}`] = row[source] ?? 0
@@ -94,7 +113,7 @@ export default function AnalyticsChart({
       dateMap.set(row.date, point)
     }
 
-    for (const row of renewals) {
+    for (const row of renData) {
       const point: MergedDataPoint = dateMap.get(row.date) || { date: row.date }
       for (const source of SOURCE_NAMES) {
         point[`ren_${source}`] = row[source] ?? 0
@@ -105,7 +124,7 @@ export default function AnalyticsChart({
     return Array.from(dateMap.values()).sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     )
-  }, [registrations, renewals])
+  }, [registrations, renewals, registrationsCost, renewalsCost, dataMode])
 
   const hasAnyData = mergedData.some((point) =>
     SOURCE_NAMES.some(
@@ -123,59 +142,97 @@ export default function AnalyticsChart({
     )
   }
 
+  const sharedElements = (
+    <>
+      <CartesianGrid strokeDasharray='3 3' stroke='var(--border)' />
+      <XAxis
+        dataKey='date'
+        stroke='var(--neutral)'
+        tick={{ fill: 'var(--neutral)', fontSize: 12 }}
+        tickFormatter={(value) => formatDateLabel(value, bucket)}
+        interval='preserveStartEnd'
+      />
+      <YAxis
+        stroke='var(--neutral)'
+        tick={{ fill: 'var(--neutral)', fontSize: 12 }}
+        allowDecimals={dataMode === 'cost'}
+        tickFormatter={
+          dataMode === 'cost' ? (value: number) => `${value.toFixed(2)}` : undefined
+        }
+      />
+      <Tooltip content={<CustomTooltip dataMode={dataMode} />} />
+    </>
+  )
+
+  const dataSeriesElements = SOURCE_NAMES.map((source) => {
+    if (!visibleSources[source]) return null
+
+    if (chartType === 'bar') {
+      return (
+        <Fragment key={`series_${source}`}>
+          {showRegistrations && (
+            <Bar
+              dataKey={`reg_${source}`}
+              fill={SOURCE_COLORS[source]}
+              name={`Registrations (${source})`}
+              stackId='registrations'
+            />
+          )}
+          {showRenewals && (
+            <Bar
+              dataKey={`ren_${source}`}
+              fill={SOURCE_COLORS[source]}
+              name={`Renewals (${source})`}
+              stackId='renewals'
+              fillOpacity={0.5}
+            />
+          )}
+        </Fragment>
+      )
+    }
+
+    return (
+      <Fragment key={`series_${source}`}>
+        {showRegistrations && (
+          <Line
+            type='monotone'
+            dataKey={`reg_${source}`}
+            stroke={SOURCE_COLORS[source]}
+            strokeWidth={2}
+            dot={false}
+            name={`Registrations (${source})`}
+            connectNulls
+          />
+        )}
+        {showRenewals && (
+          <Line
+            type='monotone'
+            dataKey={`ren_${source}`}
+            stroke={SOURCE_COLORS[source]}
+            strokeWidth={2}
+            strokeDasharray='5 5'
+            dot={false}
+            name={`Renewals (${source})`}
+            connectNulls
+          />
+        )}
+      </Fragment>
+    )
+  })
+
   return (
     <ResponsiveContainer width='100%' height={400}>
-      <LineChart data={mergedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-        <CartesianGrid strokeDasharray='3 3' stroke='var(--border)' />
-        <XAxis
-          dataKey='date'
-          stroke='var(--neutral)'
-          tick={{ fill: 'var(--neutral)', fontSize: 12 }}
-          tickFormatter={(value) => formatDateLabel(value, bucket)}
-          interval='preserveStartEnd'
-        />
-        <YAxis
-          stroke='var(--neutral)'
-          tick={{ fill: 'var(--neutral)', fontSize: 12 }}
-          allowDecimals={false}
-        />
-        <Tooltip content={<CustomTooltip />} />
-
-        {SOURCE_NAMES.map(
-          (source) =>
-            visibleSources[source] && (
-              <Line
-                key={`reg_${source}`}
-                type='monotone'
-                dataKey={`reg_${source}`}
-                stroke={SOURCE_COLORS[source]}
-                strokeWidth={2}
-                dot={false}
-                name={`Registrations (${source})`}
-                hide={!showRegistrations}
-                connectNulls
-              />
-            )
-        )}
-
-        {SOURCE_NAMES.map(
-          (source) =>
-            visibleSources[source] && (
-              <Line
-                key={`ren_${source}`}
-                type='monotone'
-                dataKey={`ren_${source}`}
-                stroke={SOURCE_COLORS[source]}
-                strokeWidth={2}
-                strokeDasharray='5 5'
-                dot={false}
-                name={`Renewals (${source})`}
-                hide={!showRenewals}
-                connectNulls
-              />
-            )
-        )}
-      </LineChart>
+      {chartType === 'bar' ? (
+        <BarChart data={mergedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+          {sharedElements}
+          {dataSeriesElements}
+        </BarChart>
+      ) : (
+        <LineChart data={mergedData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+          {sharedElements}
+          {dataSeriesElements}
+        </LineChart>
+      )}
     </ResponsiveContainer>
   )
 }

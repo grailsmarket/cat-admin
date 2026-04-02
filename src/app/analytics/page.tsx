@@ -42,6 +42,8 @@ export default function AnalyticsPage() {
   const [activePreset, setActivePreset] = useState<string | null>('30d')
   const [showRegistrations, setShowRegistrations] = useState(true)
   const [showRenewals, setShowRenewals] = useState(true)
+  const [chartType, setChartType] = useState<'line' | 'bar'>('line')
+  const [dataMode, setDataMode] = useState<'counts' | 'cost'>('counts')
   const [visibleSources, setVisibleSources] = useState<Record<SourceName, boolean>>(
     () => Object.fromEntries(SOURCE_NAMES.map((s) => [s, true])) as Record<SourceName, boolean>
   )
@@ -163,11 +165,53 @@ export default function AnalyticsPage() {
               ))}
             </div>
           </div>
+
+          {/* Data Mode */}
+          <div>
+            <p className='text-neutral mb-2 text-xs font-medium uppercase tracking-wide'>
+              Data Mode
+            </p>
+            <div className='flex gap-2'>
+              <button
+                onClick={() => setDataMode('counts')}
+                className={`btn text-sm ${dataMode === 'counts' ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                Counts
+              </button>
+              <button
+                onClick={() => setDataMode('cost')}
+                className={`btn text-sm ${dataMode === 'cost' ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                ETH Spent
+              </button>
+            </div>
+          </div>
+
+          {/* Chart Type */}
+          <div>
+            <p className='text-neutral mb-2 text-xs font-medium uppercase tracking-wide'>
+              Chart Type
+            </p>
+            <div className='flex gap-2'>
+              <button
+                onClick={() => setChartType('line')}
+                className={`btn text-sm ${chartType === 'line' ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                Line
+              </button>
+              <button
+                onClick={() => setChartType('bar')}
+                className={`btn text-sm ${chartType === 'bar' ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                Bar
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className='mb-6 grid grid-cols-2 gap-4'>
+      <div className='mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4'>
         <div className='card'>
           <p className='text-neutral text-sm font-medium'>Total Registrations</p>
           {isLoading ? (
@@ -188,11 +232,35 @@ export default function AnalyticsPage() {
             </p>
           )}
         </div>
+        <div className='card'>
+          <p className='text-neutral text-sm font-medium'>Registration Cost</p>
+          {isLoading ? (
+            <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
+          ) : (
+            <p className='mt-1 text-3xl font-bold'>
+              {(summary?.totalRegistrationCostEth ?? 0).toFixed(2)}
+              <span className='text-lg font-normal text-neutral'> ETH</span>
+            </p>
+          )}
+        </div>
+        <div className='card'>
+          <p className='text-neutral text-sm font-medium'>Renewal Cost</p>
+          {isLoading ? (
+            <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
+          ) : (
+            <p className='mt-1 text-3xl font-bold'>
+              {(summary?.totalRenewalCostEth ?? 0).toFixed(2)}
+              <span className='text-lg font-normal text-neutral'> ETH</span>
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Chart */}
       <div className='card'>
-        <h2 className='mb-4 text-lg font-semibold'>Volume Over Time</h2>
+        <h2 className='mb-4 text-lg font-semibold'>
+          {dataMode === 'cost' ? 'ETH Spent Over Time' : 'Volume Over Time'}
+        </h2>
         {isLoading ? (
           <div className='h-[400px] animate-pulse rounded bg-tertiary' />
         ) : error || !data?.success ? (
@@ -203,10 +271,14 @@ export default function AnalyticsPage() {
           <AnalyticsChart
             registrations={analyticsData.registrations}
             renewals={analyticsData.renewals}
+            registrationsCost={analyticsData.registrationsCost}
+            renewalsCost={analyticsData.renewalsCost}
             bucket={analyticsData.bucket}
             visibleSources={visibleSources}
             showRegistrations={showRegistrations}
             showRenewals={showRenewals}
+            chartType={chartType}
+            dataMode={dataMode}
           />
         ) : null}
       </div>

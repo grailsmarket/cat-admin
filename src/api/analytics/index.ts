@@ -5,15 +5,24 @@ export type SourceBreakdown = {
   total: number
 } & Record<SourceName, number>
 
+export type CostBreakdown = {
+  date: string
+  total: number
+} & Record<SourceName, number>
+
 export type AnalyticsData = {
   from: string
   to: string
   bucket: 'hour' | 'day' | 'week'
   registrations: SourceBreakdown[]
   renewals: SourceBreakdown[]
+  registrationsCost: CostBreakdown[]
+  renewalsCost: CostBreakdown[]
   summary: {
     totalRegistrations: number
     totalRenewals: number
+    totalRegistrationCostEth: number
+    totalRenewalCostEth: number
     registrationsBySource: Record<string, number>
     renewalsBySource: Record<string, number>
   }
