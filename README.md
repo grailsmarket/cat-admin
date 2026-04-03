@@ -1,17 +1,38 @@
-# Cat Admin
+# Grails Admin
 
-Admin dashboard for managing ENS name categories on [Grails](https://grails.app).
+Internal admin dashboard for [Grails](https://grails.app) — platform metrics, ENS name category management, registration analytics, and audit logging.
 
 ## What is this?
 
-Cat Admin is an internal tool for managing "categories" (also known as "clubs") — curated collections of ENS names grouped by shared characteristics like digit count, patterns, or themes.
+Grails Admin is the back-office tool for operating the Grails platform. It provides:
 
-**Features:**
-- Create new categories
-- Add/remove ENS names to categories (bulk operations supported)
-- View category membership details
-- Look up any ENS name and see its category memberships
-- Full audit log of all changes
+**Dashboard**
+- Platform overview: total users, name views, profile views, API requests
+- Trending metrics with 1d/7d/30d breakdowns
+
+**Category Management**
+- Create, edit, and delete categories (clubs) — curated collections of ENS names
+- Bulk add/remove names via CSV or text file upload
+- Category images (avatar & header) with drag-and-drop upload to S3
+- Classifications system (Ethmojis, Digits, Palindromes, Pre-Punk, Geographic, Letters, Fantasy, Crypto)
+- Invalid name scanning and ENS name normalization
+
+**Name Lookup**
+- Search any ENS name and view its category memberships
+- Add/remove names from categories inline
+
+**Analytics**
+- Registration & renewal trends with source/referrer filtering
+- Cost breakdowns (ETH spent) and duration tracking
+- API request analytics — volume trends, top routes, top users
+- Profile and name view tracking
+- Configurable date ranges and chart modes (line/bar)
+
+**Activity Log**
+- Full audit trail of all database changes with before/after diffs
+- Filter by table, operation type, or admin address
+- ENS name resolution for admin addresses
+- Grouped related events (e.g. membership change + count update)
 
 ## Tech Stack
 
@@ -80,14 +101,9 @@ This app is designed to be public-facing and open source. Security measures incl
 
 ## Database
 
-The app connects directly to the Grails PostgreSQL database using a restricted user (`grails_cat_admin`) with minimal permissions:
+The app connects directly to the Grails PostgreSQL database using a restricted user (`grails_cat_admin`) with minimal permissions on category-related tables, and read-only access to analytics/stats views.
 
-- `clubs` table: SELECT, INSERT, UPDATE
-- `club_memberships` table: SELECT, INSERT, DELETE
-- `ens_names` table: SELECT only
-- `clubs_audit_log` table: SELECT only
-
-All changes are automatically logged via database triggers.
+All category changes are automatically logged via database triggers.
 
 ## License
 
