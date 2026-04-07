@@ -45,6 +45,7 @@ export default function AnalyticsPage() {
   const [activePreset, setActivePreset] = useState<string | null>('30d')
   const [showRegistrations, setShowRegistrations] = useState(true)
   const [showRenewals, setShowRenewals] = useState(true)
+  const [showCombined, setShowCombined] = useState(false)
   const [chartType, setChartType] = useState<'line' | 'bar'>('line')
   const [dataMode, setDataMode] = useState<DataMode>('counts')
   const [visibleSources, setVisibleSources] = useState<Record<SourceName, boolean>>(
@@ -156,6 +157,15 @@ export default function AnalyticsPage() {
                 />
                 Renewals
               </label>
+              <label className='flex cursor-pointer items-center gap-2 text-sm'>
+                <input
+                  type='checkbox'
+                  checked={showCombined}
+                  onChange={(e) => setShowCombined(e.target.checked)}
+                />
+                <span className='inline-block h-[3px] w-4 bg-foreground' />
+                Combined
+              </label>
             </div>
           </div>
 
@@ -242,6 +252,7 @@ export default function AnalyticsPage() {
             visibleSources={visibleSources}
             showRegistrations={showRegistrations}
             showRenewals={showRenewals}
+            showCombined={showCombined}
             chartType={chartType}
             dataMode={dataMode}
           />
@@ -267,6 +278,7 @@ export default function AnalyticsPage() {
                   <th style={{ textAlign: 'right' }}>Renewals</th>
                   <th style={{ textAlign: 'right' }}>Ren Cost (ETH)</th>
                   <th style={{ textAlign: 'right' }}>Ren Duration (yrs)</th>
+                  <th style={{ textAlign: 'right' }}>Combined</th>
                 </tr>
               </thead>
               <tbody>
@@ -299,6 +311,9 @@ export default function AnalyticsPage() {
                     <td className='text-right'>
                       {(summary.renewalsDurationBySource[source] ?? 0).toFixed(2)}
                     </td>
+                    <td className='text-right'>
+                      {((summary.registrationsBySource[source] ?? 0) + (summary.renewalsBySource[source] ?? 0)).toLocaleString()}
+                    </td>
                   </tr>
                 ))}
                 <tr className='font-semibold' style={{ borderTop: '2px solid var(--border)' }}>
@@ -320,6 +335,9 @@ export default function AnalyticsPage() {
                   </td>
                   <td className='text-right'>
                     {(summary.totalRenewalDurationYears ?? 0).toFixed(2)}
+                  </td>
+                  <td className='text-right'>
+                    {((summary.totalRegistrations ?? 0) + (summary.totalRenewals ?? 0)).toLocaleString()}
                   </td>
                 </tr>
               </tbody>

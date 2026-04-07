@@ -29,6 +29,7 @@ type AnalyticsChartProps = {
   visibleSources: Record<SourceName, boolean>
   showRegistrations: boolean
   showRenewals: boolean
+  showCombined: boolean
   chartType: 'line' | 'bar'
   dataMode: DataMode
 }
@@ -105,6 +106,7 @@ export default function AnalyticsChart({
   visibleSources,
   showRegistrations,
   showRenewals,
+  showCombined,
   chartType,
   dataMode,
 }: AnalyticsChartProps) {
@@ -138,6 +140,14 @@ export default function AnalyticsChart({
         point[`ren_${source}`] = row[source] ?? 0
       }
       dateMap.set(row.date, point)
+    }
+
+    // Compute combined keys
+    for (const point of dateMap.values()) {
+      for (const source of SOURCE_NAMES) {
+        point[`combined_${source}`] =
+          ((point[`reg_${source}`] as number) ?? 0) + ((point[`ren_${source}`] as number) ?? 0)
+      }
     }
 
     return Array.from(dateMap.values()).sort(
@@ -210,6 +220,15 @@ export default function AnalyticsChart({
               fillOpacity={0.5}
             />
           )}
+          {showCombined && (
+            <Bar
+              dataKey={`combined_${source}`}
+              fill={SOURCE_COLORS[source]}
+              name={`Combined (${source})`}
+              stackId='combined'
+              fillOpacity={0.75}
+            />
+          )}
         </Fragment>
       )
     }
@@ -236,6 +255,17 @@ export default function AnalyticsChart({
             strokeDasharray='5 5'
             dot={false}
             name={`Renewals (${source})`}
+            connectNulls
+          />
+        )}
+        {showCombined && (
+          <Line
+            type='monotone'
+            dataKey={`combined_${source}`}
+            stroke={SOURCE_COLORS[source]}
+            strokeWidth={3}
+            dot={false}
+            name={`Combined (${source})`}
             connectNulls
           />
         )}
