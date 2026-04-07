@@ -34,6 +34,10 @@ export type AnalyticsData = {
     totalRenewalDurationYears: number
     registrationsBySource: Record<string, number>
     renewalsBySource: Record<string, number>
+    registrationsCostBySource: Record<string, number>
+    renewalsCostBySource: Record<string, number>
+    registrationsDurationBySource: Record<string, number>
+    renewalsDurationBySource: Record<string, number>
   }
 }
 

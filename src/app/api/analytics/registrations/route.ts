@@ -230,6 +230,10 @@ export async function GET(request: NextRequest) {
           totalRenewalDurationYears: renewalsDuration.reduce((sum, r) => sum + r.total, 0),
           registrationsBySource: sumBySource(registrations),
           renewalsBySource: sumBySource(renewals),
+          registrationsCostBySource: sumBySource(registrationsCost),
+          renewalsCostBySource: sumBySource(renewalsCost),
+          registrationsDurationBySource: sumBySource(registrationsDuration),
+          renewalsDurationBySource: sumBySource(renewalsDuration),
         },
       },
     })
