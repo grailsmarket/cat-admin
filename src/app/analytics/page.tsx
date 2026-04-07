@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchRegistrationAnalytics } from '@/api/analytics'
 import { SOURCE_NAMES as ALL_SOURCE_NAMES, SOURCE_COLORS, type SourceName } from '@/constants/referrers'
 
-const SOURCE_NAMES = ALL_SOURCE_NAMES.filter((s) => s !== 'rotki')
+const SOURCE_NAMES = ALL_SOURCE_NAMES.filter((s) => s !== 'rotki' && s !== 'enstools' && s !== 'snipezone')
 import AnalyticsChart, { type DataMode } from '@/components/AnalyticsChart'
 
 function toISODate(date: Date): string {
@@ -279,6 +279,7 @@ export default function AnalyticsPage() {
                   <th style={{ textAlign: 'right' }}>Ren Cost (ETH)</th>
                   <th style={{ textAlign: 'right' }}>Ren Duration (yrs)</th>
                   <th style={{ textAlign: 'right' }}>Combined</th>
+                  <th style={{ textAlign: 'right' }}>Combined Cost (ETH)</th>
                 </tr>
               </thead>
               <tbody>
@@ -314,6 +315,9 @@ export default function AnalyticsPage() {
                     <td className='text-right'>
                       {((summary.registrationsBySource[source] ?? 0) + (summary.renewalsBySource[source] ?? 0)).toLocaleString()}
                     </td>
+                    <td className='text-right'>
+                      {((summary.registrationsCostBySource[source] ?? 0) + (summary.renewalsCostBySource[source] ?? 0)).toFixed(4)}
+                    </td>
                   </tr>
                 ))}
                 <tr className='font-semibold' style={{ borderTop: '2px solid var(--border)' }}>
@@ -338,6 +342,9 @@ export default function AnalyticsPage() {
                   </td>
                   <td className='text-right'>
                     {((summary.totalRegistrations ?? 0) + (summary.totalRenewals ?? 0)).toLocaleString()}
+                  </td>
+                  <td className='text-right'>
+                    {((summary.totalRegistrationCostEth ?? 0) + (summary.totalRenewalCostEth ?? 0)).toFixed(4)}
                   </td>
                 </tr>
               </tbody>
