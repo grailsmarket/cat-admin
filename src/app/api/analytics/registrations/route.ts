@@ -17,8 +17,12 @@ function getTimeBucket(fromDate: Date, toDate: Date): { truncUnit: string; serie
   }
 }
 
-const VALID_TRUNC_UNITS = ['hour', 'day', 'week'] as const
-const VALID_SERIES_INTERVALS = ['1 hour', '1 day', '1 week'] as const
+const VALID_BUCKETS: Record<string, { truncUnit: string; seriesInterval: string }> = {
+  hour: { truncUnit: 'hour', seriesInterval: '1 hour' },
+  day: { truncUnit: 'day', seriesInterval: '1 day' },
+  week: { truncUnit: 'week', seriesInterval: '1 week' },
+  month: { truncUnit: 'month', seriesInterval: '1 month' },
+}
 
 export async function GET(request: NextRequest) {
   const cookieStore = await cookies()
@@ -52,15 +56,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'from must be before to' }, { status: 400 })
   }
 
-  const { truncUnit, seriesInterval } = getTimeBucket(fromDate, toDate)
-
-  // Validate truncUnit and seriesInterval are from our whitelist (defense in depth)
-  if (
-    !(VALID_TRUNC_UNITS as readonly string[]).includes(truncUnit) ||
-    !(VALID_SERIES_INTERVALS as readonly string[]).includes(seriesInterval)
-  ) {
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
-  }
+  const bucketParam = searchParams.get('bucket')
+  const bucketConfig = bucketParam && VALID_BUCKETS[bucketParam]
+    ? VALID_BUCKETS[bucketParam]
+    : getTimeBucket(fromDate, toDate)
+  const { truncUnit, seriesInterval } = bucketConfig
 
   const sourceCaseExpr = buildReferrerCaseExpression()
 

@@ -48,13 +48,14 @@ export default function AnalyticsPage() {
   const [showCombined, setShowCombined] = useState(false)
   const [chartType, setChartType] = useState<'line' | 'bar'>('line')
   const [dataMode, setDataMode] = useState<DataMode>('counts')
+  const [bucket, setBucket] = useState<string>('auto')
   const [visibleSources, setVisibleSources] = useState<Record<SourceName, boolean>>(
     () => Object.fromEntries(SOURCE_NAMES.map((s) => [s, true])) as Record<SourceName, boolean>
   )
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['analytics-registrations', dateRange.from, dateRange.to],
-    queryFn: () => fetchRegistrationAnalytics(dateRange.from, dateRange.to),
+    queryKey: ['analytics-registrations', dateRange.from, dateRange.to, bucket],
+    queryFn: () => fetchRegistrationAnalytics(dateRange.from, dateRange.to, bucket === 'auto' ? undefined : bucket),
   })
 
   const analyticsData = data?.data
@@ -205,6 +206,23 @@ export default function AnalyticsPage() {
               <option value='counts'>Counts</option>
               <option value='cost'>ETH Spent</option>
               <option value='duration'>Duration</option>
+            </select>
+          </div>
+
+          {/* Units */}
+          <div>
+            <p className='text-neutral mb-2 text-xs font-medium uppercase tracking-wide'>
+              Units
+            </p>
+            <select
+              value={bucket}
+              onChange={(e) => setBucket(e.target.value)}
+              className='text-sm'
+            >
+              <option value='auto'>Auto</option>
+              <option value='day'>Daily</option>
+              <option value='week'>Weekly</option>
+              <option value='month'>Monthly</option>
             </select>
           </div>
 

@@ -18,7 +18,7 @@ export type DurationBreakdown = {
 export type AnalyticsData = {
   from: string
   to: string
-  bucket: 'hour' | 'day' | 'week'
+  bucket: 'hour' | 'day' | 'week' | 'month'
   registrations: SourceBreakdown[]
   renewals: SourceBreakdown[]
   registrationsCost: CostBreakdown[]
@@ -129,13 +129,15 @@ export async function fetchViewsAnalytics(
 
 export async function fetchRegistrationAnalytics(
   from: string,
-  to: string
+  to: string,
+  bucket?: string
 ): Promise<{ success: boolean; data?: AnalyticsData; error?: string }> {
   try {
-    const response = await fetch(
-      `/api/analytics/registrations?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-      { credentials: 'include' }
-    )
+    let url = `/api/analytics/registrations?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    if (bucket) {
+      url += `&bucket=${encodeURIComponent(bucket)}`
+    }
+    const response = await fetch(url, { credentials: 'include' })
 
     if (!response.ok) {
       const error = await response.json()

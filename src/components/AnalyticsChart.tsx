@@ -25,7 +25,7 @@ type AnalyticsChartProps = {
   renewalsCost: CostBreakdown[]
   registrationsDuration: DurationBreakdown[]
   renewalsDuration: DurationBreakdown[]
-  bucket: 'hour' | 'day' | 'week'
+  bucket: 'hour' | 'day' | 'week' | 'month'
   visibleSources: Record<SourceName, boolean>
   showRegistrations: boolean
   showRenewals: boolean
@@ -39,10 +39,13 @@ type MergedDataPoint = {
   [key: string]: string | number
 }
 
-function formatDateLabel(dateStr: string, bucket: 'hour' | 'day' | 'week'): string {
+function formatDateLabel(dateStr: string, bucket: 'hour' | 'day' | 'week' | 'month'): string {
   const date = new Date(dateStr)
   if (bucket === 'hour') {
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' })
+  }
+  if (bucket === 'month') {
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
   }
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
