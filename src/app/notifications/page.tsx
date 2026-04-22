@@ -2,14 +2,22 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
+import { fetchAccount } from 'ethereum-identity-kit'
 import {
   previewNotification,
   sendTestNotification,
   sendBroadcast,
   listBroadcasts,
   type Channel,
+  type AudienceFilter,
 } from '@/api/notifications'
 import { ConfirmModal } from '@/components/ConfirmModal'
+
+type AudienceType = 'everyone' | 'specific'
+type Chip = { address: string; label: string }
+
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
+const ENS_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i
 
 export default function NotificationsPage() {
   const [title, setTitle] = useState('')
@@ -17,6 +25,12 @@ export default function NotificationsPage() {
   const [linkUrl, setLinkUrl] = useState('')
   const [email, setEmail] = useState(true)
   const [telegram, setTelegram] = useState(true)
+
+  const [audienceType, setAudienceType] = useState<AudienceType>('everyone')
+  const [chips, setChips] = useState<Chip[]>([])
+  const [specificInput, setSpecificInput] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+  const [resolving, setResolving] = useState(false)
 
   const [preview, setPreview] = useState<{ total: number; email: number; telegram: number } | null>(null)
   const [flash, setFlash] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
@@ -26,8 +40,78 @@ export default function NotificationsPage() {
   if (email) channels.push('email')
   if (telegram) channels.push('telegram')
 
-  const payload = { title: title.trim(), body: body.trim(), linkUrl: linkUrl.trim() || undefined, channels }
-  const canCompose = payload.title.length > 0 && payload.body.length > 0 && channels.length >= 1
+  const audience: AudienceFilter =
+    audienceType === 'everyone'
+      ? { type: 'everyone' }
+      : { type: 'specific', addresses: chips.map((c) => c.address) }
+
+  const payload = {
+    title: title.trim(),
+    body: body.trim(),
+    linkUrl: linkUrl.trim() || undefined,
+    channels,
+    audience,
+  }
+  const audienceValid = audience.type !== 'specific' || audience.addresses.length > 0
+  const canCompose =
+    payload.title.length > 0 && payload.body.length > 0 && channels.length >= 1 && audienceValid
+
+  const resetPreview = () => setPreview(null)
+
+  const changeAudienceType = (next: AudienceType) => {
+    setAudienceType(next)
+    setAddError(null)
+    resetPreview()
+  }
+
+  const addChip = async () => {
+    setAddError(null)
+    const raw = specificInput.trim()
+    if (!raw) return
+
+    if (ADDRESS_RE.test(raw)) {
+      const addr = raw.toLowerCase()
+      if (chips.some((c) => c.address === addr)) {
+        setAddError('Already added')
+        return
+      }
+      setChips([...chips, { address: addr, label: `${addr.slice(0, 6)}…${addr.slice(-4)}` }])
+      setSpecificInput('')
+      resetPreview()
+      return
+    }
+
+    if (ENS_RE.test(raw)) {
+      setResolving(true)
+      try {
+        const account = await fetchAccount(raw)
+        const resolved = account?.address?.toLowerCase()
+        if (!resolved || !ADDRESS_RE.test(resolved)) {
+          setAddError(`Couldn't resolve ${raw}`)
+          return
+        }
+        if (chips.some((c) => c.address === resolved)) {
+          setAddError(`${raw} is already added`)
+          return
+        }
+        setChips([...chips, { address: resolved, label: raw }])
+        setSpecificInput('')
+        resetPreview()
+      } catch {
+        setAddError(`Couldn't resolve ${raw}`)
+      } finally {
+        setResolving(false)
+      }
+      return
+    }
+
+    setAddError('Enter an Ethereum address or ENS name')
+  }
+
+  const removeChip = (addr: string) => {
+    setChips(chips.filter((c) => c.address !== addr))
+    resetPreview()
+  }
 
   const history = useQuery({
     queryKey: ['admin-broadcasts'],
@@ -35,7 +119,7 @@ export default function NotificationsPage() {
   })
 
   const previewMutation = useMutation({
-    mutationFn: () => previewNotification({ channels }),
+    mutationFn: () => previewNotification({ channels, audience }),
     onSuccess: (res) => {
       if (res.success && res.data) {
         setPreview({
@@ -52,7 +136,13 @@ export default function NotificationsPage() {
   })
 
   const testMutation = useMutation({
-    mutationFn: () => sendTestNotification(payload),
+    mutationFn: () =>
+      sendTestNotification({
+        title: payload.title,
+        body: payload.body,
+        linkUrl: payload.linkUrl,
+        channels,
+      }),
     onSuccess: (res) => {
       if (res.success) {
         setFlash({ kind: 'success', text: 'Test notification sent to your account.' })
@@ -76,6 +166,8 @@ export default function NotificationsPage() {
         setTitle('')
         setBody('')
         setLinkUrl('')
+        setChips([])
+        setAudienceType('everyone')
         setPreview(null)
         history.refetch()
       } else {
@@ -98,7 +190,7 @@ export default function NotificationsPage() {
       <div className='mb-8'>
         <h1 className='text-3xl font-bold'>Notifications</h1>
         <p className='text-neutral mt-2 text-sm'>
-          Send custom announcements to all users via in-app, email, and/or Telegram.
+          Send custom announcements to users via in-app, email, and/or Telegram.
         </p>
       </div>
 
@@ -154,6 +246,86 @@ export default function NotificationsPage() {
         </div>
 
         <div className='mb-4'>
+          <label className='mb-2 block text-sm font-medium'>Audience</label>
+          <div className='flex flex-col gap-2 text-sm'>
+            <label className='flex items-center gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'everyone'}
+                onChange={() => changeAudienceType('everyone')}
+              />
+              Everyone
+            </label>
+            <label className='flex items-center gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'specific'}
+                onChange={() => changeAudienceType('specific')}
+              />
+              Specific user(s)
+            </label>
+          </div>
+
+          {audienceType === 'specific' && (
+            <div className='mt-3 rounded-lg border border-dashed p-3'>
+              <div className='flex gap-2'>
+                <input
+                  type='text'
+                  value={specificInput}
+                  onChange={(e) => {
+                    setSpecificInput(e.target.value)
+                    if (addError) setAddError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addChip()
+                    }
+                  }}
+                  placeholder='0x… address or name.eth'
+                  className='flex-1'
+                  disabled={resolving}
+                />
+                <button
+                  type='button'
+                  onClick={addChip}
+                  disabled={resolving || !specificInput.trim()}
+                  className='btn btn-secondary'
+                >
+                  {resolving ? 'Resolving…' : 'Add'}
+                </button>
+              </div>
+              {addError && <div className='text-error mt-2 text-xs'>{addError}</div>}
+              {chips.length > 0 && (
+                <div className='mt-3 flex flex-wrap gap-2'>
+                  {chips.map((chip) => (
+                    <span
+                      key={chip.address}
+                      className='inline-flex items-center gap-1 rounded-full bg-[var(--tertiary)] px-3 py-1 text-xs'
+                    >
+                      <span className='font-mono'>{chip.label}</span>
+                      <button
+                        type='button'
+                        onClick={() => removeChip(chip.address)}
+                        className='text-neutral hover:text-error ml-1'
+                        aria-label={`Remove ${chip.label}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {chips.length === 0 && !addError && (
+                <div className='text-neutral mt-2 text-xs'>Add at least one recipient to send.</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className='mb-4'>
           <label className='mb-2 block text-sm font-medium'>Channels</label>
           <div className='flex flex-col gap-2 text-sm'>
             <label className='flex items-center gap-2'>
@@ -166,7 +338,7 @@ export default function NotificationsPage() {
                 checked={email}
                 onChange={(e) => {
                   setEmail(e.target.checked)
-                  setPreview(null)
+                  resetPreview()
                 }}
               />
               Email (verified addresses only)
@@ -177,7 +349,7 @@ export default function NotificationsPage() {
                 checked={telegram}
                 onChange={(e) => {
                   setTelegram(e.target.checked)
-                  setPreview(null)
+                  resetPreview()
                 }}
               />
               Telegram (linked chats only)
@@ -195,7 +367,7 @@ export default function NotificationsPage() {
         <div className='flex flex-wrap gap-2'>
           <button
             onClick={() => previewMutation.mutate()}
-            disabled={previewMutation.isPending}
+            disabled={previewMutation.isPending || !audienceValid}
             className='btn btn-secondary'
           >
             {previewMutation.isPending ? 'Checking…' : 'Preview recipients'}
@@ -277,7 +449,16 @@ export default function NotificationsPage() {
         message={
           <div className='space-y-2 text-left'>
             <div>
-              This will notify all users via <b>{channels.join(', ')}</b>.
+              {audience.type === 'everyone' ? (
+                <>
+                  This will notify <b>all users</b> via <b>{channels.join(', ')}</b>.
+                </>
+              ) : (
+                <>
+                  This will notify <b>{audience.addresses.length}</b> user
+                  {audience.addresses.length === 1 ? '' : 's'} via <b>{channels.join(', ')}</b>.
+                </>
+              )}
             </div>
             {preview ? (
               <div>

@@ -1,7 +1,12 @@
 export type Channel = 'in_app' | 'email' | 'telegram'
 
+export type AudienceFilter =
+  | { type: 'everyone' }
+  | { type: 'specific'; addresses: string[] }
+
 export interface PreviewRequest {
   channels: Channel[]
+  audience: AudienceFilter
 }
 
 export interface PreviewResponse {
@@ -20,7 +25,7 @@ export interface ComposePayload {
   channels: Channel[]
 }
 
-export type BroadcastPayload = ComposePayload
+export type BroadcastPayload = ComposePayload & { audience: AudienceFilter }
 
 export interface SendResponse {
   success: boolean
