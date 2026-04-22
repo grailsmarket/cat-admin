@@ -1,33 +1,67 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   previewNotification,
   sendTestNotification,
   sendBroadcast,
   listBroadcasts,
+  uploadNotificationImage,
   type Channel,
 } from '@/api/notifications'
 import { ConfirmModal } from '@/components/ConfirmModal'
+
+const IMAGE_ACCEPT = 'image/jpeg,image/png'
+const IMAGE_MAX_BYTES = 2 * 1024 * 1024
+
+function validateImageFileClient(file: File): string | null {
+  if (!['image/jpeg', 'image/png'].includes(file.type)) return 'Only JPEG and PNG files are allowed.'
+  if (file.size > IMAGE_MAX_BYTES) return 'File must be 2 MB or less.'
+  return null
+}
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
 
 export default function NotificationsPage() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
   const [email, setEmail] = useState(true)
   const [telegram, setTelegram] = useState(true)
 
   const [preview, setPreview] = useState<{ total: number; email: number; telegram: number } | null>(null)
   const [flash, setFlash] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const channels: Channel[] = ['in_app']
   if (email) channels.push('email')
   if (telegram) channels.push('telegram')
 
-  const payload = { title: title.trim(), body: body.trim(), linkUrl: linkUrl.trim() || undefined, channels }
-  const canCompose = payload.title.length > 0 && payload.body.length > 0 && channels.length >= 1
+  const trimmedImageUrl = imageUrl.trim()
+  const imageUrlError = useMemo(() => {
+    if (!trimmedImageUrl) return null
+    return isValidHttpUrl(trimmedImageUrl) ? null : 'Image URL must start with http:// or https://'
+  }, [trimmedImageUrl])
+
+  const payload = {
+    title: title.trim(),
+    body: body.trim(),
+    linkUrl: linkUrl.trim() || undefined,
+    imageUrl: trimmedImageUrl || undefined,
+    channels,
+  }
+  const canCompose =
+    payload.title.length > 0 && payload.body.length > 0 && channels.length >= 1 && !imageUrlError
 
   const history = useQuery({
     queryKey: ['admin-broadcasts'],
@@ -76,6 +110,7 @@ export default function NotificationsPage() {
         setTitle('')
         setBody('')
         setLinkUrl('')
+        setImageUrl('')
         setPreview(null)
         history.refetch()
       } else {
@@ -87,6 +122,28 @@ export default function NotificationsPage() {
       setFlash({ kind: 'error', text: 'Broadcast request failed' })
     },
   })
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadNotificationImage(file),
+    onSuccess: (res) => {
+      if (res.success && res.data) {
+        setImageUrl(res.data.imageUrl)
+        setFlash(null)
+      } else {
+        setFlash({ kind: 'error', text: res.error || 'Image upload failed' })
+      }
+    },
+    onError: () => setFlash({ kind: 'error', text: 'Image upload request failed' }),
+  })
+
+  const handleImageFileSelect = (file: File) => {
+    const clientError = validateImageFileClient(file)
+    if (clientError) {
+      setFlash({ kind: 'error', text: clientError })
+      return
+    }
+    uploadMutation.mutate(file)
+  }
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -154,6 +211,69 @@ export default function NotificationsPage() {
         </div>
 
         <div className='mb-4'>
+          <label className='mb-1 block text-sm font-medium'>Image (optional)</label>
+          <div className='flex gap-2'>
+            <input
+              type='url'
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder='https://... or upload a file'
+              className={`flex-1 ${imageUrlError ? 'border-error' : ''}`}
+              disabled={uploadMutation.isPending}
+            />
+            <label
+              className={`btn btn-secondary shrink-0 ${
+                uploadMutation.isPending ? 'pointer-events-none opacity-50' : 'cursor-pointer'
+              }`}
+            >
+              {uploadMutation.isPending ? 'Uploading…' : 'Upload'}
+              <input
+                ref={imageInputRef}
+                type='file'
+                accept={IMAGE_ACCEPT}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImageFileSelect(file)
+                  if (imageInputRef.current) imageInputRef.current.value = ''
+                }}
+                className='sr-only'
+                disabled={uploadMutation.isPending}
+              />
+            </label>
+          </div>
+          {imageUrlError ? (
+            <p className='text-error mt-1 text-xs'>{imageUrlError}</p>
+          ) : (
+            <p className='text-neutral mt-1 text-xs'>JPEG or PNG, 2 MB max.</p>
+          )}
+          {trimmedImageUrl && !imageUrlError && (
+            <div className='border-border relative mt-2 inline-block max-w-full overflow-hidden rounded-lg border'>
+              <img
+                src={trimmedImageUrl}
+                alt='Notification image preview'
+                className='block max-h-40 max-w-full object-contain'
+              />
+              <button
+                type='button'
+                onClick={() => setImageUrl('')}
+                aria-label='Remove image'
+                className='absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white hover:bg-black'
+              >
+                <svg
+                  className='h-3 w-3'
+                  fill='none'
+                  viewBox='0 0 24 24'
+                  stroke='currentColor'
+                  strokeWidth={3}
+                >
+                  <path strokeLinecap='round' strokeLinejoin='round' d='M6 18L18 6M6 6l12 12' />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className='mb-4'>
           <label className='mb-2 block text-sm font-medium'>Channels</label>
           <div className='flex flex-col gap-2 text-sm'>
             <label className='flex items-center gap-2'>
@@ -202,14 +322,14 @@ export default function NotificationsPage() {
           </button>
           <button
             onClick={() => testMutation.mutate()}
-            disabled={!canCompose || testMutation.isPending}
+            disabled={!canCompose || testMutation.isPending || uploadMutation.isPending}
             className='btn btn-secondary'
           >
             {testMutation.isPending ? 'Sending…' : 'Send test to me'}
           </button>
           <button
             onClick={() => setConfirmOpen(true)}
-            disabled={!canCompose || broadcastMutation.isPending}
+            disabled={!canCompose || broadcastMutation.isPending || uploadMutation.isPending}
             className='btn btn-primary ml-auto'
           >
             Send broadcast
