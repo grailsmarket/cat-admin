@@ -17,6 +17,7 @@ export interface ComposePayload {
   title: string
   body: string
   linkUrl?: string
+  imageUrl?: string
   channels: Channel[]
 }
 
@@ -92,6 +93,23 @@ export async function listBroadcasts(
 ): Promise<ListBroadcastsResponse> {
   const response = await fetch(`/api/notifications?page=${page}&limit=${limit}`, {
     credentials: 'include',
+  })
+  return response.json()
+}
+
+export interface UploadImageResponse {
+  success: boolean
+  data?: { imageUrl: string }
+  error?: string
+}
+
+export async function uploadNotificationImage(file: File): Promise<UploadImageResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await fetch('/api/notifications/images', {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
   })
   return response.json()
 }
