@@ -11,14 +11,10 @@ import {
 } from '@/api/notifications'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
-type TierId = 1 | 2 | 3
-const TIER_LABELS: Record<TierId, string> = { 1: 'Plus', 2: 'Pro', 3: 'Gold' }
-
 export default function NotificationsPage() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
-  const [minTierId, setMinTierId] = useState<TierId>(1)
   const [email, setEmail] = useState(true)
   const [telegram, setTelegram] = useState(true)
 
@@ -39,7 +35,7 @@ export default function NotificationsPage() {
   })
 
   const previewMutation = useMutation({
-    mutationFn: () => previewNotification({ minTierId, channels }),
+    mutationFn: () => previewNotification({ channels }),
     onSuccess: (res) => {
       if (res.success && res.data) {
         setPreview({
@@ -69,13 +65,13 @@ export default function NotificationsPage() {
   })
 
   const broadcastMutation = useMutation({
-    mutationFn: () => sendBroadcast({ ...payload, minTierId }),
+    mutationFn: () => sendBroadcast(payload),
     onSuccess: (res) => {
       setConfirmOpen(false)
       if (res.success && res.data) {
         setFlash({
           kind: 'success',
-          text: `Broadcast #${res.data.broadcastId} sent to ${res.data.enqueued ?? 0} subscribers.`,
+          text: `Broadcast #${res.data.broadcastId} sent to ${res.data.enqueued ?? 0} user${res.data.enqueued === 1 ? '' : 's'}.`,
         })
         setTitle('')
         setBody('')
@@ -102,7 +98,7 @@ export default function NotificationsPage() {
       <div className='mb-8'>
         <h1 className='text-3xl font-bold'>Notifications</h1>
         <p className='text-neutral mt-2 text-sm'>
-          Send custom announcements to paid subscribers via in-app, email, and/or Telegram.
+          Send custom announcements to all users via in-app, email, and/or Telegram.
         </p>
       </div>
 
@@ -128,7 +124,7 @@ export default function NotificationsPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={200}
-            placeholder='E.g. Grails Pro update: new analytics'
+            placeholder='E.g. Grails update: new analytics'
             className='w-full'
           />
         </div>
@@ -155,26 +151,6 @@ export default function NotificationsPage() {
             placeholder='https://grails.app/...'
             className='w-full'
           />
-        </div>
-
-        <div className='mb-4'>
-          <label className='mb-2 block text-sm font-medium'>Minimum tier</label>
-          <div className='flex gap-4'>
-            {([1, 2, 3] as TierId[]).map((tid) => (
-              <label key={tid} className='flex items-center gap-2 text-sm'>
-                <input
-                  type='radio'
-                  name='minTier'
-                  checked={minTierId === tid}
-                  onChange={() => {
-                    setMinTierId(tid)
-                    setPreview(null)
-                  }}
-                />
-                {TIER_LABELS[tid]} and up
-              </label>
-            ))}
-          </div>
         </div>
 
         <div className='mb-4'>
@@ -211,8 +187,8 @@ export default function NotificationsPage() {
 
         {preview && (
           <div className='mb-4 rounded-lg border border-dashed p-3 text-sm'>
-            Would reach <b>{preview.total}</b> subscriber{preview.total === 1 ? '' : 's'} at{' '}
-            <b>{TIER_LABELS[minTierId]}</b> and up. Email: <b>{preview.email}</b>, Telegram: <b>{preview.telegram}</b>.
+            Would reach <b>{preview.total}</b> user{preview.total === 1 ? '' : 's'}. Email: <b>{preview.email}</b>,
+            Telegram: <b>{preview.telegram}</b>.
           </div>
         )}
 
@@ -255,7 +231,6 @@ export default function NotificationsPage() {
                 <th>Sent</th>
                 <th>Sent by</th>
                 <th>Title</th>
-                <th>Min tier</th>
                 <th>Channels</th>
                 <th>Recipients</th>
               </tr>
@@ -275,14 +250,13 @@ export default function NotificationsPage() {
                       </span>
                     )}
                   </td>
-                  <td>{b.is_test ? '—' : TIER_LABELS[b.min_tier_id as TierId] ?? b.min_tier_id}</td>
                   <td className='text-xs'>{(b.channels || []).join(', ')}</td>
                   <td>{b.recipient_count}</td>
                 </tr>
               ))}
               {broadcasts.length === 0 && !history.isLoading && (
                 <tr>
-                  <td colSpan={6} className='text-neutral py-6 text-center text-sm'>
+                  <td colSpan={5} className='text-neutral py-6 text-center text-sm'>
                     No broadcasts yet.
                   </td>
                 </tr>
@@ -303,8 +277,7 @@ export default function NotificationsPage() {
         message={
           <div className='space-y-2 text-left'>
             <div>
-              This will notify subscribers at <b>{TIER_LABELS[minTierId]}</b> and up via{' '}
-              <b>{channels.join(', ')}</b>.
+              This will notify all users via <b>{channels.join(', ')}</b>.
             </div>
             {preview ? (
               <div>
