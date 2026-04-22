@@ -2,25 +2,40 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
+import { fetchAccount } from 'ethereum-identity-kit'
 import {
   previewNotification,
   sendTestNotification,
   sendBroadcast,
   listBroadcasts,
   type Channel,
+  type AudienceFilter,
+  type TierId,
 } from '@/api/notifications'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
-type TierId = 1 | 2 | 3
+type AudienceType = 'everyone' | 'specific' | 'unsubscribed' | 'tiers'
+type Chip = { address: string; label: string }
+
 const TIER_LABELS: Record<TierId, string> = { 1: 'Plus', 2: 'Pro', 3: 'Gold' }
+const TIER_IDS: TierId[] = [1, 2, 3]
+
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
+const ENS_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i
 
 export default function NotificationsPage() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
-  const [minTierId, setMinTierId] = useState<TierId>(1)
   const [email, setEmail] = useState(true)
   const [telegram, setTelegram] = useState(true)
+
+  const [audienceType, setAudienceType] = useState<AudienceType>('everyone')
+  const [chips, setChips] = useState<Chip[]>([])
+  const [specificInput, setSpecificInput] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+  const [resolving, setResolving] = useState(false)
+  const [selectedTiers, setSelectedTiers] = useState<TierId[]>([])
 
   const [preview, setPreview] = useState<{ total: number; email: number; telegram: number } | null>(null)
   const [flash, setFlash] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
@@ -30,8 +45,88 @@ export default function NotificationsPage() {
   if (email) channels.push('email')
   if (telegram) channels.push('telegram')
 
-  const payload = { title: title.trim(), body: body.trim(), linkUrl: linkUrl.trim() || undefined, channels }
-  const canCompose = payload.title.length > 0 && payload.body.length > 0 && channels.length >= 1
+  const audience: AudienceFilter = (() => {
+    switch (audienceType) {
+      case 'everyone':
+        return { type: 'everyone' }
+      case 'specific':
+        return { type: 'specific', addresses: chips.map((c) => c.address) }
+      case 'unsubscribed':
+        return { type: 'unsubscribed' }
+      case 'tiers':
+        return { type: 'tiers', tierIds: selectedTiers }
+    }
+  })()
+
+  const payload = {
+    title: title.trim(),
+    body: body.trim(),
+    linkUrl: linkUrl.trim() || undefined,
+    channels,
+    audience,
+  }
+  const audienceValid =
+    (audience.type !== 'specific' || audience.addresses.length > 0) &&
+    (audience.type !== 'tiers' || audience.tierIds.length > 0)
+  const canCompose =
+    payload.title.length > 0 && payload.body.length > 0 && channels.length >= 1 && audienceValid
+
+  const resetPreview = () => setPreview(null)
+
+  const changeAudienceType = (next: AudienceType) => {
+    setAudienceType(next)
+    setAddError(null)
+    resetPreview()
+  }
+
+  const addChip = async () => {
+    setAddError(null)
+    const raw = specificInput.trim()
+    if (!raw) return
+
+    if (ADDRESS_RE.test(raw)) {
+      const addr = raw.toLowerCase()
+      if (chips.some((c) => c.address === addr)) {
+        setAddError('Already added')
+        return
+      }
+      setChips([...chips, { address: addr, label: `${addr.slice(0, 6)}…${addr.slice(-4)}` }])
+      setSpecificInput('')
+      resetPreview()
+      return
+    }
+
+    if (ENS_RE.test(raw)) {
+      setResolving(true)
+      try {
+        const account = await fetchAccount(raw)
+        const resolved = account?.address?.toLowerCase()
+        if (!resolved || !ADDRESS_RE.test(resolved)) {
+          setAddError(`Couldn't resolve ${raw}`)
+          return
+        }
+        if (chips.some((c) => c.address === resolved)) {
+          setAddError(`${raw} is already added`)
+          return
+        }
+        setChips([...chips, { address: resolved, label: raw }])
+        setSpecificInput('')
+        resetPreview()
+      } catch {
+        setAddError(`Couldn't resolve ${raw}`)
+      } finally {
+        setResolving(false)
+      }
+      return
+    }
+
+    setAddError('Enter an Ethereum address or ENS name')
+  }
+
+  const removeChip = (addr: string) => {
+    setChips(chips.filter((c) => c.address !== addr))
+    resetPreview()
+  }
 
   const history = useQuery({
     queryKey: ['admin-broadcasts'],
@@ -39,7 +134,7 @@ export default function NotificationsPage() {
   })
 
   const previewMutation = useMutation({
-    mutationFn: () => previewNotification({ minTierId, channels }),
+    mutationFn: () => previewNotification({ channels, audience }),
     onSuccess: (res) => {
       if (res.success && res.data) {
         setPreview({
@@ -56,7 +151,13 @@ export default function NotificationsPage() {
   })
 
   const testMutation = useMutation({
-    mutationFn: () => sendTestNotification(payload),
+    mutationFn: () =>
+      sendTestNotification({
+        title: payload.title,
+        body: payload.body,
+        linkUrl: payload.linkUrl,
+        channels,
+      }),
     onSuccess: (res) => {
       if (res.success) {
         setFlash({ kind: 'success', text: 'Test notification sent to your account.' })
@@ -69,17 +170,20 @@ export default function NotificationsPage() {
   })
 
   const broadcastMutation = useMutation({
-    mutationFn: () => sendBroadcast({ ...payload, minTierId }),
+    mutationFn: () => sendBroadcast(payload),
     onSuccess: (res) => {
       setConfirmOpen(false)
       if (res.success && res.data) {
         setFlash({
           kind: 'success',
-          text: `Broadcast #${res.data.broadcastId} sent to ${res.data.enqueued ?? 0} subscribers.`,
+          text: `Broadcast #${res.data.broadcastId} sent to ${res.data.enqueued ?? 0} user${res.data.enqueued === 1 ? '' : 's'}.`,
         })
         setTitle('')
         setBody('')
         setLinkUrl('')
+        setChips([])
+        setSelectedTiers([])
+        setAudienceType('everyone')
         setPreview(null)
         history.refetch()
       } else {
@@ -102,7 +206,7 @@ export default function NotificationsPage() {
       <div className='mb-8'>
         <h1 className='text-3xl font-bold'>Notifications</h1>
         <p className='text-neutral mt-2 text-sm'>
-          Send custom announcements to paid subscribers via in-app, email, and/or Telegram.
+          Send custom announcements to users via in-app, email, and/or Telegram.
         </p>
       </div>
 
@@ -128,7 +232,7 @@ export default function NotificationsPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={200}
-            placeholder='E.g. Grails Pro update: new analytics'
+            placeholder='E.g. Grails update: new analytics'
             className='w-full'
           />
         </div>
@@ -158,23 +262,131 @@ export default function NotificationsPage() {
         </div>
 
         <div className='mb-4'>
-          <label className='mb-2 block text-sm font-medium'>Minimum tier</label>
-          <div className='flex gap-4'>
-            {([1, 2, 3] as TierId[]).map((tid) => (
-              <label key={tid} className='flex items-center gap-2 text-sm'>
-                <input
-                  type='radio'
-                  name='minTier'
-                  checked={minTierId === tid}
-                  onChange={() => {
-                    setMinTierId(tid)
-                    setPreview(null)
-                  }}
-                />
-                {TIER_LABELS[tid]} and up
-              </label>
-            ))}
+          <label className='mb-2 block text-sm font-medium'>Audience</label>
+          <div className='flex flex-col gap-2 text-sm'>
+            <label className='flex items-center gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'everyone'}
+                onChange={() => changeAudienceType('everyone')}
+              />
+              Everyone
+            </label>
+            <label className='flex items-center gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'specific'}
+                onChange={() => changeAudienceType('specific')}
+              />
+              Specific user(s)
+            </label>
+            <label className='flex items-center gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'unsubscribed'}
+                onChange={() => changeAudienceType('unsubscribed')}
+              />
+              Unsubscribed users
+            </label>
+            <label className='flex items-center gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'tiers'}
+                onChange={() => changeAudienceType('tiers')}
+              />
+              Subscription tiers
+            </label>
           </div>
+
+          {audienceType === 'tiers' && (
+            <div className='mt-3 rounded-lg border border-dashed p-3'>
+              <div className='flex flex-wrap gap-4 text-sm'>
+                {TIER_IDS.map((tid) => {
+                  const checked = selectedTiers.includes(tid)
+                  return (
+                    <label key={tid} className='flex items-center gap-2'>
+                      <input
+                        type='checkbox'
+                        checked={checked}
+                        onChange={(e) => {
+                          setSelectedTiers(
+                            e.target.checked
+                              ? [...selectedTiers, tid].sort((a, b) => a - b) as TierId[]
+                              : selectedTiers.filter((t) => t !== tid)
+                          )
+                          resetPreview()
+                        }}
+                      />
+                      {TIER_LABELS[tid]}
+                    </label>
+                  )
+                })}
+              </div>
+              {selectedTiers.length === 0 && (
+                <div className='text-neutral mt-2 text-xs'>Select at least one tier to send.</div>
+              )}
+            </div>
+          )}
+
+          {audienceType === 'specific' && (
+            <div className='mt-3 rounded-lg border border-dashed p-3'>
+              <div className='flex gap-2'>
+                <input
+                  type='text'
+                  value={specificInput}
+                  onChange={(e) => {
+                    setSpecificInput(e.target.value)
+                    if (addError) setAddError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addChip()
+                    }
+                  }}
+                  placeholder='0x… address or name.eth'
+                  className='flex-1'
+                  disabled={resolving}
+                />
+                <button
+                  type='button'
+                  onClick={addChip}
+                  disabled={resolving || !specificInput.trim()}
+                  className='btn btn-secondary'
+                >
+                  {resolving ? 'Resolving…' : 'Add'}
+                </button>
+              </div>
+              {addError && <div className='text-error mt-2 text-xs'>{addError}</div>}
+              {chips.length > 0 && (
+                <div className='mt-3 flex flex-wrap gap-2'>
+                  {chips.map((chip) => (
+                    <span
+                      key={chip.address}
+                      className='inline-flex items-center gap-1 rounded-full bg-[var(--tertiary)] px-3 py-1 text-xs'
+                    >
+                      <span className='font-mono'>{chip.label}</span>
+                      <button
+                        type='button'
+                        onClick={() => removeChip(chip.address)}
+                        className='text-neutral hover:text-error ml-1'
+                        aria-label={`Remove ${chip.label}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {chips.length === 0 && !addError && (
+                <div className='text-neutral mt-2 text-xs'>Add at least one recipient to send.</div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className='mb-4'>
@@ -190,7 +402,7 @@ export default function NotificationsPage() {
                 checked={email}
                 onChange={(e) => {
                   setEmail(e.target.checked)
-                  setPreview(null)
+                  resetPreview()
                 }}
               />
               Email (verified addresses only)
@@ -201,7 +413,7 @@ export default function NotificationsPage() {
                 checked={telegram}
                 onChange={(e) => {
                   setTelegram(e.target.checked)
-                  setPreview(null)
+                  resetPreview()
                 }}
               />
               Telegram (linked chats only)
@@ -211,15 +423,15 @@ export default function NotificationsPage() {
 
         {preview && (
           <div className='mb-4 rounded-lg border border-dashed p-3 text-sm'>
-            Would reach <b>{preview.total}</b> subscriber{preview.total === 1 ? '' : 's'} at{' '}
-            <b>{TIER_LABELS[minTierId]}</b> and up. Email: <b>{preview.email}</b>, Telegram: <b>{preview.telegram}</b>.
+            Would reach <b>{preview.total}</b> user{preview.total === 1 ? '' : 's'}. Email: <b>{preview.email}</b>,
+            Telegram: <b>{preview.telegram}</b>.
           </div>
         )}
 
         <div className='flex flex-wrap gap-2'>
           <button
             onClick={() => previewMutation.mutate()}
-            disabled={previewMutation.isPending}
+            disabled={previewMutation.isPending || !audienceValid}
             className='btn btn-secondary'
           >
             {previewMutation.isPending ? 'Checking…' : 'Preview recipients'}
@@ -255,7 +467,6 @@ export default function NotificationsPage() {
                 <th>Sent</th>
                 <th>Sent by</th>
                 <th>Title</th>
-                <th>Min tier</th>
                 <th>Channels</th>
                 <th>Recipients</th>
               </tr>
@@ -275,14 +486,13 @@ export default function NotificationsPage() {
                       </span>
                     )}
                   </td>
-                  <td>{b.is_test ? '—' : TIER_LABELS[b.min_tier_id as TierId] ?? b.min_tier_id}</td>
                   <td className='text-xs'>{(b.channels || []).join(', ')}</td>
                   <td>{b.recipient_count}</td>
                 </tr>
               ))}
               {broadcasts.length === 0 && !history.isLoading && (
                 <tr>
-                  <td colSpan={6} className='text-neutral py-6 text-center text-sm'>
+                  <td colSpan={5} className='text-neutral py-6 text-center text-sm'>
                     No broadcasts yet.
                   </td>
                 </tr>
@@ -303,8 +513,29 @@ export default function NotificationsPage() {
         message={
           <div className='space-y-2 text-left'>
             <div>
-              This will notify subscribers at <b>{TIER_LABELS[minTierId]}</b> and up via{' '}
-              <b>{channels.join(', ')}</b>.
+              {audience.type === 'everyone' && (
+                <>
+                  This will notify <b>all users</b> via <b>{channels.join(', ')}</b>.
+                </>
+              )}
+              {audience.type === 'specific' && (
+                <>
+                  This will notify <b>{audience.addresses.length}</b> user
+                  {audience.addresses.length === 1 ? '' : 's'} via <b>{channels.join(', ')}</b>.
+                </>
+              )}
+              {audience.type === 'unsubscribed' && (
+                <>
+                  This will notify <b>unsubscribed users</b> via <b>{channels.join(', ')}</b>.
+                </>
+              )}
+              {audience.type === 'tiers' && (
+                <>
+                  This will notify subscribers at{' '}
+                  <b>{audience.tierIds.map((t) => TIER_LABELS[t]).join(', ')}</b> via{' '}
+                  <b>{channels.join(', ')}</b>.
+                </>
+              )}
             </div>
             {preview ? (
               <div>

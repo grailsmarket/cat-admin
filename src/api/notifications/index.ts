@@ -1,8 +1,16 @@
 export type Channel = 'in_app' | 'email' | 'telegram'
 
+export type TierId = 1 | 2 | 3
+
+export type AudienceFilter =
+  | { type: 'everyone' }
+  | { type: 'specific'; addresses: string[] }
+  | { type: 'unsubscribed' }
+  | { type: 'tiers'; tierIds: TierId[] }
+
 export interface PreviewRequest {
-  minTierId: 1 | 2 | 3
   channels: Channel[]
+  audience: AudienceFilter
 }
 
 export interface PreviewResponse {
@@ -21,9 +29,7 @@ export interface ComposePayload {
   channels: Channel[]
 }
 
-export interface BroadcastPayload extends ComposePayload {
-  minTierId: 1 | 2 | 3
-}
+export type BroadcastPayload = ComposePayload & { audience: AudienceFilter }
 
 export interface SendResponse {
   success: boolean
@@ -36,7 +42,6 @@ export interface BroadcastHistoryRow {
   title: string
   body: string
   link_url: string | null
-  min_tier_id: number
   channels: string[]
   recipient_count: number
   is_test: boolean
