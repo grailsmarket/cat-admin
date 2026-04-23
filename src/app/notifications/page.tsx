@@ -11,15 +11,12 @@ import {
   uploadNotificationImage,
   type Channel,
   type AudienceFilter,
-  type TierId,
 } from '@/api/notifications'
+import { TIER_LABELS, TIER_IDS, type TierId } from '@/lib/tiers'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
 type AudienceType = 'everyone' | 'specific' | 'unsubscribed' | 'tiers'
 type Chip = { address: string; label: string }
-
-const TIER_LABELS: Record<TierId, string> = { 1: 'Plus', 2: 'Pro', 3: 'Gold' }
-const TIER_IDS: TierId[] = [1, 2, 3]
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
 const ENS_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i

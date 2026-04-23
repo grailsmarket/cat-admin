@@ -1,6 +1,8 @@
+import type { TierId } from '@/lib/tiers'
+
 export type Channel = 'in_app' | 'email' | 'telegram'
 
-export type TierId = 1 | 2 | 3
+export type { TierId }
 
 export type AudienceFilter =
   | { type: 'everyone' }
