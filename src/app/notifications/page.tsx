@@ -34,6 +34,7 @@ export default function NotificationsPage() {
   const [resolving, setResolving] = useState(false)
 
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageUploading, setImageUploading] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
   const [imageDragOver, setImageDragOver] = useState(false)
@@ -131,15 +132,24 @@ export default function NotificationsPage() {
       setImageError('File must be 2 MB or less.')
       return
     }
+
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    const previewUrl = URL.createObjectURL(file)
+    setImagePreview(previewUrl)
+    setImageUrl(null)
     setImageUploading(true)
     try {
       const result = await uploadNotificationImage(file)
       if (result.success && result.data) {
         setImageUrl(result.data.url)
       } else {
+        URL.revokeObjectURL(previewUrl)
+        setImagePreview(null)
         setImageError(result.error || 'Upload failed')
       }
     } catch {
+      URL.revokeObjectURL(previewUrl)
+      setImagePreview(null)
       setImageError('Upload failed')
     } finally {
       setImageUploading(false)
@@ -154,6 +164,8 @@ export default function NotificationsPage() {
   }
 
   const handleImageRemove = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImagePreview(null)
     setImageUrl(null)
     setImageError(null)
     if (imageInputRef.current) imageInputRef.current.value = ''
@@ -213,6 +225,8 @@ export default function NotificationsPage() {
         setTitle('')
         setBody('')
         setLinkUrl('')
+        if (imagePreview) URL.revokeObjectURL(imagePreview)
+        setImagePreview(null)
         setImageUrl(null)
         setImageError(null)
         setChips([])
@@ -304,25 +318,36 @@ export default function NotificationsPage() {
             }}
             onDragLeave={() => setImageDragOver(false)}
           >
-            {imageUploading ? (
-              <div className='flex h-32 w-full items-center justify-center rounded-lg border border-border'>
-                <div className='h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent' />
-              </div>
-            ) : imageUrl ? (
-              <div className='relative inline-block'>
-                <img
-                  src={imageUrl}
-                  alt='Notification image'
-                  className='max-h-64 rounded-lg border border-border'
-                />
-                <button
-                  type='button'
-                  onClick={handleImageRemove}
-                  className='absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-xs text-white hover:bg-black/80'
-                  aria-label='Remove image'
-                >
-                  Remove
-                </button>
+            {imagePreview ? (
+              <div className='space-y-2'>
+                <div className='relative inline-block max-w-full'>
+                  <img
+                    src={imagePreview}
+                    alt=''
+                    className='block max-h-64 max-w-full rounded-lg border border-border'
+                  />
+                  {imageUploading && (
+                    <div className='absolute inset-0 flex items-center justify-center rounded-lg bg-black/40'>
+                      <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent' />
+                    </div>
+                  )}
+                </div>
+                <div className='flex items-center gap-3 text-xs'>
+                  <button
+                    type='button'
+                    onClick={handleImageRemove}
+                    className='btn btn-secondary'
+                  >
+                    Remove image
+                  </button>
+                  <span className='text-neutral'>
+                    {imageUploading
+                      ? 'Uploading…'
+                      : imageUrl
+                        ? 'Ready to send'
+                        : 'Upload failed'}
+                  </span>
+                </div>
               </div>
             ) : (
               <label
