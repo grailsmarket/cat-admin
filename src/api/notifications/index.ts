@@ -26,6 +26,7 @@ export interface ComposePayload {
   title: string
   body: string
   linkUrl?: string
+  imageUrl?: string
   channels: Channel[]
 }
 
@@ -37,11 +38,18 @@ export interface SendResponse {
   error?: string
 }
 
+export interface ImageUploadResponse {
+  success: boolean
+  data?: { key: string; url: string }
+  error?: string
+}
+
 export interface BroadcastHistoryRow {
   id: number
   title: string
   body: string
   link_url: string | null
+  image_url: string | null
   channels: string[]
   recipient_count: number
   is_test: boolean
@@ -101,6 +109,17 @@ export async function listBroadcasts(
 ): Promise<ListBroadcastsResponse> {
   const response = await fetch(`/api/notifications?page=${page}&limit=${limit}`, {
     credentials: 'include',
+  })
+  return response.json()
+}
+
+export async function uploadNotificationImage(file: File): Promise<ImageUploadResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await fetch('/api/notifications/images', {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
   })
   return response.json()
 }

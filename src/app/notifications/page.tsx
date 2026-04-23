@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { fetchAccount } from 'ethereum-identity-kit'
 import {
@@ -8,6 +8,7 @@ import {
   sendTestNotification,
   sendBroadcast,
   listBroadcasts,
+  uploadNotificationImage,
   type Channel,
   type AudienceFilter,
   type TierId,
@@ -37,6 +38,13 @@ export default function NotificationsPage() {
   const [resolving, setResolving] = useState(false)
   const [selectedTiers, setSelectedTiers] = useState<TierId[]>([])
 
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageUploading, setImageUploading] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [imageDragOver, setImageDragOver] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+
   const [preview, setPreview] = useState<{ total: number; email: number; telegram: number } | null>(null)
   const [flash, setFlash] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -62,6 +70,7 @@ export default function NotificationsPage() {
     title: title.trim(),
     body: body.trim(),
     linkUrl: linkUrl.trim() || undefined,
+    imageUrl: imageUrl || undefined,
     channels,
     audience,
   }
@@ -128,6 +137,55 @@ export default function NotificationsPage() {
     resetPreview()
   }
 
+  const handleImageSelect = async (file: File) => {
+    setImageError(null)
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setImageError('Only JPEG and PNG files are allowed.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setImageError('File must be 2 MB or less.')
+      return
+    }
+
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    const previewUrl = URL.createObjectURL(file)
+    setImagePreview(previewUrl)
+    setImageUrl(null)
+    setImageUploading(true)
+    try {
+      const result = await uploadNotificationImage(file)
+      if (result.success && result.data) {
+        setImageUrl(result.data.url)
+      } else {
+        URL.revokeObjectURL(previewUrl)
+        setImagePreview(null)
+        setImageError(result.error || 'Upload failed')
+      }
+    } catch {
+      URL.revokeObjectURL(previewUrl)
+      setImagePreview(null)
+      setImageError('Upload failed')
+    } finally {
+      setImageUploading(false)
+    }
+  }
+
+  const handleImageDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setImageDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleImageSelect(file)
+  }
+
+  const handleImageRemove = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImagePreview(null)
+    setImageUrl(null)
+    setImageError(null)
+    if (imageInputRef.current) imageInputRef.current.value = ''
+  }
+
   const history = useQuery({
     queryKey: ['admin-broadcasts'],
     queryFn: () => listBroadcasts(1, 25),
@@ -156,6 +214,7 @@ export default function NotificationsPage() {
         title: payload.title,
         body: payload.body,
         linkUrl: payload.linkUrl,
+        imageUrl: payload.imageUrl,
         channels,
       }),
     onSuccess: (res) => {
@@ -181,6 +240,10 @@ export default function NotificationsPage() {
         setTitle('')
         setBody('')
         setLinkUrl('')
+        if (imagePreview) URL.revokeObjectURL(imagePreview)
+        setImagePreview(null)
+        setImageUrl(null)
+        setImageError(null)
         setChips([])
         setSelectedTiers([])
         setAudienceType('everyone')
@@ -259,6 +322,78 @@ export default function NotificationsPage() {
             placeholder='https://grails.app/...'
             className='w-full'
           />
+        </div>
+
+        <div className='mb-4'>
+          <label className='mb-1 block text-sm font-medium'>Image (optional)</label>
+          <div
+            onDrop={handleImageDrop}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setImageDragOver(true)
+            }}
+            onDragLeave={() => setImageDragOver(false)}
+          >
+            {imagePreview ? (
+              <div className='space-y-2'>
+                <div className='relative inline-block max-w-full'>
+                  <img
+                    src={imagePreview}
+                    alt=''
+                    className='block max-h-64 max-w-full rounded-lg border border-border'
+                  />
+                  {imageUploading && (
+                    <div className='absolute inset-0 flex items-center justify-center rounded-lg bg-black/40'>
+                      <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent' />
+                    </div>
+                  )}
+                </div>
+                <div className='flex items-center gap-3 text-xs'>
+                  <button
+                    type='button'
+                    onClick={handleImageRemove}
+                    className='btn btn-secondary'
+                  >
+                    Remove image
+                  </button>
+                  <span className='text-neutral'>
+                    {imageUploading
+                      ? 'Uploading…'
+                      : imageUrl
+                        ? 'Ready to send'
+                        : 'Upload failed'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <label
+                className={`flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors ${
+                  imageDragOver
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-primary/50 hover:bg-surface-2'
+                }`}
+              >
+                <svg className='text-neutral mb-1 h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1.5} d='M12 4v16m8-8H4' />
+                </svg>
+                <span className='text-neutral text-xs'>
+                  {imageDragOver ? 'Drop image here' : 'Click or drop JPEG / PNG (max 2 MB)'}
+                </span>
+                <input
+                  ref={imageInputRef}
+                  type='file'
+                  accept='image/jpeg,image/png'
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleImageSelect(file)
+                    if (imageInputRef.current) imageInputRef.current.value = ''
+                  }}
+                  className='sr-only'
+                />
+              </label>
+            )}
+          </div>
+          {imageError && <div className='text-error mt-2 text-xs'>{imageError}</div>}
         </div>
 
         <div className='mb-4'>
