@@ -6,9 +6,11 @@ import {
   fetchSubscriptions,
   cancelSubscription,
   extendSubscription,
+  grantSubscription,
   type SubscriptionRow,
   type SubscriptionFilters,
 } from '@/api/subscriptions'
+import { fetchAccount } from 'ethereum-identity-kit'
 import {
   ALL_TIER_LABELS,
   SUBSCRIPTION_STATUSES,
@@ -21,9 +23,16 @@ import { resolveAddresses } from '@/lib/ens'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
 const PAGE_SIZE = 50
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
+const ENS_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i
 
 type SortField = NonNullable<SubscriptionFilters['sort']>
 type SortDir = NonNullable<SubscriptionFilters['dir']>
+
+function toDatetimeLocal(date: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
 
 function truncateAddress(address: string | null): string {
   if (!address) return '—'
@@ -130,6 +139,17 @@ export default function SubscribersPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
 
+  // Grant subscription state
+  const [grantOpen, setGrantOpen] = useState(false)
+  const [grantAddressInput, setGrantAddressInput] = useState('')
+  const [grantResolvedAddress, setGrantResolvedAddress] = useState<string | null>(null)
+  const [grantResolvedLabel, setGrantResolvedLabel] = useState<string | null>(null)
+  const [grantResolving, setGrantResolving] = useState(false)
+  const [grantTier, setGrantTier] = useState<TierId>(1)
+  const [grantDate, setGrantDate] = useState(() => toDatetimeLocal(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)))
+  const [grantNotes, setGrantNotes] = useState('')
+  const [grantError, setGrantError] = useState<string | null>(null)
+
   // Debounce search input
   useEffect(() => {
     const t = setTimeout(() => {
@@ -216,6 +236,86 @@ export default function SubscribersPage() {
     onError: (err) => setActionError(err instanceof Error ? err.message : 'Extend failed'),
   })
 
+  const grantMutation = useMutation({
+    mutationFn: (payload: { address: string; tierId: TierId; expiresAt: string; notes?: string }) =>
+      grantSubscription(payload),
+    onSuccess: (res) => {
+      if (res.success && res.data) {
+        setFlash({ kind: 'success', text: `Granted ${TIER_LABELS[grantTier]} subscription #${res.data.id}.` })
+        setGrantOpen(false)
+        setGrantAddressInput('')
+        setGrantResolvedAddress(null)
+        setGrantResolvedLabel(null)
+        setGrantNotes('')
+        setGrantError(null)
+        queryClient.invalidateQueries({ queryKey: ['subscriptions'] })
+      } else {
+        setGrantError(res.error || 'Grant failed')
+      }
+    },
+    onError: (err) => setGrantError(err instanceof Error ? err.message : 'Grant failed'),
+  })
+
+  const resolveGrantTarget = async () => {
+    setGrantError(null)
+    const raw = grantAddressInput.trim()
+    if (!raw) return
+    if (ADDRESS_RE.test(raw)) {
+      const addr = raw.toLowerCase()
+      setGrantResolvedAddress(addr)
+      setGrantResolvedLabel(`${addr.slice(0, 6)}…${addr.slice(-4)}`)
+      return
+    }
+    if (ENS_RE.test(raw)) {
+      setGrantResolving(true)
+      try {
+        const account = await fetchAccount(raw)
+        const resolved = account?.address?.toLowerCase()
+        if (!resolved || !ADDRESS_RE.test(resolved)) {
+          setGrantError(`Couldn't resolve ${raw}`)
+          setGrantResolvedAddress(null)
+          setGrantResolvedLabel(null)
+        } else {
+          setGrantResolvedAddress(resolved)
+          setGrantResolvedLabel(raw)
+        }
+      } catch {
+        setGrantError(`Couldn't resolve ${raw}`)
+        setGrantResolvedAddress(null)
+        setGrantResolvedLabel(null)
+      } finally {
+        setGrantResolving(false)
+      }
+      return
+    }
+    setGrantError('Enter an Ethereum address or ENS name')
+    setGrantResolvedAddress(null)
+    setGrantResolvedLabel(null)
+  }
+
+  const submitGrant = () => {
+    setGrantError(null)
+    if (!grantResolvedAddress) {
+      setGrantError('Resolve an address or ENS name first')
+      return
+    }
+    if (!grantDate) {
+      setGrantError('Pick an expiration date')
+      return
+    }
+    const expiresAt = new Date(grantDate)
+    if (isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+      setGrantError('Expiration must be in the future')
+      return
+    }
+    grantMutation.mutate({
+      address: grantResolvedAddress,
+      tierId: grantTier,
+      expiresAt: expiresAt.toISOString(),
+      notes: grantNotes.trim() || undefined,
+    })
+  }
+
   const openExtend = (row: SubscriptionRow) => {
     setActionError(null)
     setToExtend(row)
@@ -231,11 +331,22 @@ export default function SubscribersPage() {
 
   return (
     <div className='p-4 lg:p-8'>
-      <div className='mb-8'>
-        <h1 className='text-3xl font-bold'>Subscribers</h1>
-        <p className='text-neutral mt-1 text-sm'>
-          Manage Grails Pro subscriptions — search by address/user_id, filter by tier or status, and cancel or extend accounts.
-        </p>
+      <div className='mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
+        <div>
+          <h1 className='text-3xl font-bold'>Subscribers</h1>
+          <p className='text-neutral mt-1 text-sm'>
+            Manage Grails Pro subscriptions — search by address/user_id, filter by tier or status, and grant, cancel, or extend accounts.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setGrantOpen(true)
+            setGrantError(null)
+          }}
+          className='btn btn-primary whitespace-nowrap'
+        >
+          Grant subscription
+        </button>
       </div>
 
       {flash && (
@@ -515,6 +626,129 @@ export default function SubscribersPage() {
           ) : null
         }
       />
+
+      {/* Grant modal */}
+      {grantOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center'>
+          <div
+            className='absolute inset-0 bg-black/50 backdrop-blur-sm'
+            onClick={() => {
+              if (!grantMutation.isPending) setGrantOpen(false)
+            }}
+          />
+          <div className='card relative z-10 w-full max-w-md shadow-xl'>
+            <h2 className='mb-4 text-lg font-semibold'>Grant subscription</h2>
+
+            <div className='mb-4'>
+              <label className='text-neutral mb-1 block text-xs'>Recipient address or ENS</label>
+              <div className='flex gap-2'>
+                <input
+                  type='text'
+                  value={grantAddressInput}
+                  onChange={(e) => {
+                    setGrantAddressInput(e.target.value)
+                    setGrantResolvedAddress(null)
+                    setGrantResolvedLabel(null)
+                    setGrantError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      resolveGrantTarget()
+                    }
+                  }}
+                  placeholder='0x… or name.eth'
+                  className='flex-1'
+                  disabled={grantResolving || grantMutation.isPending}
+                />
+                <button
+                  type='button'
+                  onClick={resolveGrantTarget}
+                  disabled={grantResolving || !grantAddressInput.trim() || grantMutation.isPending}
+                  className='btn btn-secondary whitespace-nowrap'
+                >
+                  {grantResolving ? 'Resolving…' : 'Resolve'}
+                </button>
+              </div>
+              {grantResolvedAddress && (
+                <div className='text-neutral mt-2 text-xs'>
+                  Sending to{' '}
+                  <span className='font-mono'>{grantResolvedLabel}</span>
+                  {grantResolvedLabel !== grantResolvedAddress && (
+                    <span className='font-mono'> · {grantResolvedAddress.slice(0, 6)}…{grantResolvedAddress.slice(-4)}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className='mb-4'>
+              <div className='text-neutral mb-1 text-xs'>Tier</div>
+              <div className='flex flex-wrap gap-4 text-sm'>
+                {TIER_IDS.map((t) => (
+                  <label key={t} className='flex items-center gap-2'>
+                    <input
+                      type='radio'
+                      name='grantTier'
+                      checked={grantTier === t}
+                      onChange={() => setGrantTier(t)}
+                    />
+                    {TIER_LABELS[t]}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className='mb-4'>
+              <label className='text-neutral mb-1 block text-xs'>Expires</label>
+              <input
+                type='datetime-local'
+                value={grantDate}
+                onChange={(e) => setGrantDate(e.target.value)}
+                className='w-full'
+                disabled={grantMutation.isPending}
+              />
+            </div>
+
+            <div className='mb-4'>
+              <label className='text-neutral mb-1 block text-xs'>Notes (optional)</label>
+              <textarea
+                value={grantNotes}
+                onChange={(e) => setGrantNotes(e.target.value)}
+                rows={2}
+                placeholder='Why this grant is being issued'
+                className='w-full'
+                maxLength={500}
+                disabled={grantMutation.isPending}
+              />
+            </div>
+
+            {grantError && <div className='text-error mb-3 text-xs'>{grantError}</div>}
+
+            <div className='text-neutral mb-4 text-xs'>
+              If the user currently has an active subscription, it will be marked <b>superseded</b> and replaced with this one.
+            </div>
+
+            <div className='flex gap-3'>
+              <button
+                onClick={() => {
+                  if (!grantMutation.isPending) setGrantOpen(false)
+                }}
+                className='btn btn-secondary flex-1'
+                disabled={grantMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitGrant}
+                className='btn btn-primary flex-1'
+                disabled={grantMutation.isPending || !grantResolvedAddress}
+              >
+                {grantMutation.isPending ? 'Granting…' : 'Grant'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Extend modal */}
       {toExtend && (

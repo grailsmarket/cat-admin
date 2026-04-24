@@ -62,6 +62,25 @@ export async function fetchSubscriptions(
   return response.json()
 }
 
+export interface GrantSubscriptionPayload {
+  address: string
+  tierId: TierId
+  expiresAt: string
+  notes?: string
+}
+
+export async function grantSubscription(
+  payload: GrantSubscriptionPayload
+): Promise<{ success: boolean; error?: string; data?: { id: number; userId: number } }> {
+  const response = await fetch('/api/subscriptions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  })
+  return response.json()
+}
+
 export async function cancelSubscription(id: number): Promise<{ success: boolean; error?: string }> {
   const response = await fetch(`/api/subscriptions/${id}/cancel`, {
     method: 'POST',
