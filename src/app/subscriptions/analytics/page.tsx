@@ -2,24 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  fetchSubscriberAnalytics,
-  fetchSubscriptionRevenue,
-  type SubscriptionRevenueRow,
-} from '@/api/subscriptions/analytics'
+import { fetchSubscriberAnalytics } from '@/api/subscriptions/analytics'
 import { resolveAddresses } from '@/lib/ens'
 import { ALL_TIER_LABELS } from '@/lib/tiers'
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  ComposedChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
 } from 'recharts'
 import type { Payload } from 'recharts/types/component/DefaultTooltipContent'
 
@@ -49,26 +42,6 @@ function formatDateLabel(dateStr: string): string {
 
 function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
-}
-
-function formatEth(eth: number, fractionDigits = 4): string {
-  if (!isFinite(eth)) return '—'
-  return `${eth.toLocaleString('en-US', { maximumFractionDigits: fractionDigits })} ETH`
-}
-
-function formatUsd(usd: number | null | undefined): string {
-  if (usd == null || !isFinite(usd)) return '—'
-  return usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 function CustomTooltip({
@@ -106,47 +79,6 @@ function CustomTooltip({
   )
 }
 
-function RevenueTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean
-  payload?: ReadonlyArray<Payload<number, string>>
-  label?: string
-}) {
-  if (!active || !payload || payload.length === 0) return null
-  return (
-    <div className='rounded-lg border border-border bg-secondary p-3 shadow-lg'>
-      <p className='mb-2 text-sm font-medium'>
-        {new Date(label ?? '').toLocaleDateString('en-US', {
-          weekday: 'short',
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        })}
-      </p>
-      <div className='space-y-1'>
-        {payload.map((entry) => {
-          const v = entry.value ?? 0
-          if (!v) return null
-          let formatted: string
-          if (entry.dataKey === 'eth') formatted = formatEth(v)
-          else if (entry.dataKey === 'usd') formatted = formatUsd(v)
-          else formatted = v.toLocaleString()
-          return (
-            <div key={String(entry.dataKey)} className='flex items-center gap-2 text-xs'>
-              <span className='inline-block h-2 w-2 rounded-full' style={{ backgroundColor: entry.color }} />
-              <span className='text-neutral'>{entry.name}:</span>
-              <span className='font-medium'>{formatted}</span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 export default function SubscriberAnalyticsPage() {
   const defaultRange = getPresetRange('30d')
   const [dateRange, setDateRange] = useState(defaultRange)
@@ -165,13 +97,6 @@ export default function SubscriberAnalyticsPage() {
     queryFn: () => fetchSubscriberAnalytics(dateRange.from, dateRange.to, selectedUser!),
     enabled: !!selectedUser,
   })
-
-  const revenueQuery = useQuery({
-    queryKey: ['subscription-revenue', dateRange.from, dateRange.to],
-    queryFn: () => fetchSubscriptionRevenue(dateRange.from, dateRange.to),
-  })
-  const revenue = revenueQuery.data?.data
-  const revenueSummary = revenue?.summary
 
   const analyticsData = data?.data
   const summary = analyticsData?.summary
@@ -246,181 +171,6 @@ export default function SubscriberAnalyticsPage() {
           />
         </div>
       </div>
-
-      {/* Revenue section */}
-      <div className='mb-8'>
-        <h2 className='mb-3 text-xl font-semibold'>Subscription Revenue</h2>
-
-        {revenueQuery.error || (revenueQuery.data && !revenueQuery.data.success) ? (
-          <div className='mb-4 rounded-lg border border-error bg-error/10 p-4 text-sm text-error'>
-            {revenueQuery.data?.error || 'Failed to load subscription revenue'}
-          </div>
-        ) : null}
-
-        <div className='mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4'>
-          <div className='card'>
-            <p className='text-neutral text-sm font-medium'>Paid Subscriptions</p>
-            {revenueQuery.isLoading ? (
-              <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
-            ) : (
-              <p className='mt-1 text-3xl font-bold'>{(revenueSummary?.totalSubs ?? 0).toLocaleString()}</p>
-            )}
-            {revenueSummary && (
-              <p className='text-neutral mt-1 text-xs'>
-                {revenueSummary.uniqueUsers.toLocaleString()} unique user{revenueSummary.uniqueUsers === 1 ? '' : 's'}
-              </p>
-            )}
-          </div>
-          <div className='card'>
-            <p className='text-neutral text-sm font-medium'>ETH Earned</p>
-            {revenueQuery.isLoading ? (
-              <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
-            ) : (
-              <p className='mt-1 text-3xl font-bold'>
-                {(revenueSummary?.totalEth ?? 0).toLocaleString('en-US', { maximumFractionDigits: 4 })}
-              </p>
-            )}
-            <p className='text-neutral mt-1 text-xs'>Excludes admin grants</p>
-          </div>
-          <div className='card'>
-            <p className='text-neutral text-sm font-medium'>USD (at sub time)</p>
-            {revenueQuery.isLoading ? (
-              <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
-            ) : (
-              <p className='mt-1 text-3xl font-bold'>{formatUsd(revenueSummary?.totalUsdHistorical ?? 0)}</p>
-            )}
-            <p className='text-neutral mt-1 text-xs'>Each sub valued at the ETH/USD rate when it started</p>
-          </div>
-          <div className='card'>
-            <p className='text-neutral text-sm font-medium'>USD (at current rate)</p>
-            {revenueQuery.isLoading ? (
-              <div className='mt-1 h-9 w-20 animate-pulse rounded bg-tertiary' />
-            ) : (
-              <p className='mt-1 text-3xl font-bold'>{formatUsd(revenueSummary?.totalUsdAtCurrent)}</p>
-            )}
-            <p className='text-neutral mt-1 text-xs'>
-              {revenueSummary?.currentEthUsd != null
-                ? `1 ETH = ${formatUsd(revenueSummary.currentEthUsd)}`
-                : 'No current price available'}
-            </p>
-          </div>
-        </div>
-
-        <div className='card mb-4'>
-          <h3 className='mb-4 text-base font-semibold'>New Subscriptions Over Time</h3>
-          {revenueQuery.isLoading ? (
-            <div className='h-[360px] animate-pulse rounded bg-tertiary' />
-          ) : revenue?.daily && revenue.daily.length > 0 && revenueSummary?.totalSubs ? (
-            <ResponsiveContainer width='100%' height={360}>
-              <ComposedChart data={revenue.daily} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                <CartesianGrid strokeDasharray='3 3' stroke='var(--border)' />
-                <XAxis
-                  dataKey='date'
-                  stroke='var(--neutral)'
-                  tick={{ fill: 'var(--neutral)', fontSize: 12 }}
-                  tickFormatter={formatDateLabel}
-                  interval='preserveStartEnd'
-                />
-                <YAxis
-                  yAxisId='left'
-                  stroke='var(--neutral)'
-                  tick={{ fill: 'var(--neutral)', fontSize: 12 }}
-                  allowDecimals={false}
-                />
-                <YAxis
-                  yAxisId='right'
-                  orientation='right'
-                  stroke='var(--neutral)'
-                  tick={{ fill: 'var(--neutral)', fontSize: 12 }}
-                  tickFormatter={(v: number) => `${v.toFixed(2)}`}
-                />
-                <Tooltip content={<RevenueTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar
-                  yAxisId='left'
-                  dataKey='count'
-                  fill='#3b82f6'
-                  name='New subscriptions'
-                  radius={[2, 2, 0, 0]}
-                />
-                <Line
-                  yAxisId='right'
-                  type='monotone'
-                  dataKey='eth'
-                  stroke='#22c55e'
-                  strokeWidth={2}
-                  dot={false}
-                  name='ETH earned'
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className='flex h-[200px] items-center justify-center text-neutral text-sm'>
-              No paid subscriptions in this window
-            </div>
-          )}
-        </div>
-
-        <div className='card overflow-hidden p-0'>
-          <div className='flex items-center justify-between px-4 py-3 border-b border-border'>
-            <h3 className='text-base font-semibold'>Subscriptions in Window</h3>
-            {revenue?.subsTruncated && (
-              <span className='text-neutral text-xs'>Showing the most recent {revenue.subsLimit}</span>
-            )}
-          </div>
-          {revenueQuery.isLoading ? (
-            <div className='h-48 animate-pulse bg-tertiary' />
-          ) : revenue?.subs && revenue.subs.length > 0 ? (
-            <div className='overflow-x-auto'>
-              <table className='w-full text-sm'>
-                <thead>
-                  <tr className='border-b border-border bg-tertiary'>
-                    <th className='px-4 py-3 text-left font-medium text-neutral'>Started</th>
-                    <th className='px-4 py-3 text-left font-medium text-neutral'>User</th>
-                    <th className='px-4 py-3 text-left font-medium text-neutral'>Tier</th>
-                    <th className='px-4 py-3 text-right font-medium text-neutral'>ETH</th>
-                    <th className='px-4 py-3 text-right font-medium text-neutral'>USD (at sub)</th>
-                    <th className='px-4 py-3 text-left font-medium text-neutral hidden md:table-cell'>Tx</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {revenue.subs.map((s: SubscriptionRevenueRow) => (
-                    <tr key={s.id} className='border-b border-border last:border-0'>
-                      <td className='px-4 py-3 whitespace-nowrap text-xs'>{formatDate(s.startedAt)}</td>
-                      <td className='px-4 py-3 font-mono text-xs'>{s.address ? truncateAddress(s.address) : `uid ${s.userId}`}</td>
-                      <td className='px-4 py-3 text-xs'>
-                        {ALL_TIER_LABELS[s.tierId as keyof typeof ALL_TIER_LABELS] ?? s.tier}
-                      </td>
-                      <td className='px-4 py-3 text-right'>{formatEth(s.ethAmount)}</td>
-                      <td className='px-4 py-3 text-right'>{formatUsd(s.usdAmount)}</td>
-                      <td className='px-4 py-3 hidden md:table-cell'>
-                        {s.paymentTxHash ? (
-                          <a
-                            href={`https://etherscan.io/tx/${s.paymentTxHash}`}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='text-primary font-mono text-xs hover:underline'
-                          >
-                            {s.paymentTxHash.slice(0, 6)}…{s.paymentTxHash.slice(-4)}
-                          </a>
-                        ) : (
-                          <span className='text-neutral'>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className='flex h-32 items-center justify-center text-neutral text-sm'>
-              No paid subscriptions in this window
-            </div>
-          )}
-        </div>
-      </div>
-
-      <h2 className='mb-3 text-xl font-semibold'>Tier-Gated Endpoint Usage</h2>
 
       {/* Summary Cards */}
       <div className='mb-6 grid grid-cols-3 gap-4'>
