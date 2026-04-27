@@ -24,6 +24,17 @@ export interface SupportTicketMessage {
   createdAt: string
 }
 
+export interface SupportTicketStatusChange {
+  id: number
+  ticketId: number
+  actorUserId: number
+  actorAddress: string | null
+  actorRole: 'user' | 'admin'
+  fromStatus: SupportTicketStatus | null
+  toStatus: SupportTicketStatus
+  createdAt: string
+}
+
 export interface SupportTicketsListResponse {
   success: boolean
   data?: {
@@ -45,6 +56,7 @@ export interface SupportTicketDetailResponse {
   data?: {
     ticket: SupportTicket
     messages: SupportTicketMessage[]
+    statusChanges?: SupportTicketStatusChange[]
   }
   error?: { code: string; message: string } | string
 }

@@ -102,7 +102,7 @@ export default function SupportTicketPage({ params }: { params: Promise<{ id: st
     )
   }
 
-  const { ticket, messages } = data.data
+  const { ticket, messages, statusChanges = [] } = data.data
 
   return (
     <div className='flex flex-col gap-6 p-4 lg:p-8'>
@@ -197,6 +197,35 @@ export default function SupportTicketPage({ params }: { params: Promise<{ id: st
           </button>
         </div>
       </section>
+
+      {statusChanges.length > 0 && (
+        <section className='border-border bg-secondary flex flex-col gap-3 rounded-lg border p-4'>
+          <h2 className='text-lg font-semibold'>Status history</h2>
+          <ul className='flex flex-col gap-1.5 text-sm'>
+            {statusChanges.map((c) => (
+              <li key={c.id} className='flex flex-wrap items-center gap-2'>
+                <span className='text-neutral'>{formatDate(c.createdAt)}</span>
+                <span className='text-foreground'>
+                  {c.fromStatus ? (
+                    <>
+                      <span className='capitalize'>{c.fromStatus}</span>
+                      <span className='text-neutral mx-1'>→</span>
+                    </>
+                  ) : null}
+                  <span className='capitalize font-semibold'>{c.toStatus}</span>
+                </span>
+                <span className='text-neutral'>by</span>
+                <span
+                  className={`font-mono ${c.actorRole === 'admin' ? 'text-primary' : 'text-foreground'}`}
+                >
+                  {truncateAddress(c.actorAddress)}
+                </span>
+                <span className='text-neutral text-xs uppercase'>({c.actorRole})</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className='border-border bg-secondary flex flex-col gap-3 rounded-lg border p-4'>
         <h2 className='text-lg font-semibold'>Update status</h2>
