@@ -59,7 +59,7 @@ export default function SupportListPage() {
   const pagination = data?.success && data.data ? data.data.pagination : null
 
   return (
-    <div className='flex flex-col gap-6'>
+    <div className='flex flex-col gap-6 p-4 lg:p-8'>
       <header className='flex items-end justify-between gap-3'>
         <div>
           <h1 className='text-2xl font-semibold'>Support</h1>

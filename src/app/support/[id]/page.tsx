@@ -105,7 +105,7 @@ export default function SupportTicketPage({ params }: { params: Promise<{ id: st
   const { ticket, messages } = data.data
 
   return (
-    <div className='flex flex-col gap-6'>
+    <div className='flex flex-col gap-6 p-4 lg:p-8'>
       <header className='flex flex-col gap-3'>
         <Link href='/support' className='text-neutral hover:text-foreground text-sm'>
           ← Back to tickets
