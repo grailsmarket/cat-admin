@@ -382,8 +382,27 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           </li>
         </ul>
 
-        {/* Notifications + Activity Log - pinned to bottom */}
+        {/* Notifications + Activity Log + Support - pinned to bottom */}
         <div className='mt-auto flex flex-col gap-1 pt-4'>
+          <Link
+            href='/support'
+            onClick={closeMobile}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+              isActive('/support')
+                ? 'bg-primary/10 text-primary'
+                : 'text-foreground hover:bg-tertiary'
+            }`}
+          >
+            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M18.364 5.636A9 9 0 105.636 18.364 9 9 0 0018.364 5.636zM9.879 9.879a3 3 0 114.243 4.243M12 17h.01'
+              />
+            </svg>
+            Support
+          </Link>
           <Link
             href='/notifications'
             onClick={closeMobile}
