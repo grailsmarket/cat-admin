@@ -300,10 +300,109 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
               Views
             </Link>
           </li>
+          <li>
+            {/* Parent: Subscriptions */}
+            <div
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium ${
+                pathname === '/subscriptions' || pathname.startsWith('/subscriptions/')
+                  ? 'text-primary'
+                  : 'text-foreground'
+              }`}
+            >
+              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'
+                />
+              </svg>
+              Subscriptions
+            </div>
+            {/* Sub-nav: Subscribers */}
+            <Link
+              href='/subscriptions'
+              onClick={closeMobile}
+              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                pathname === '/subscriptions'
+                  ? 'text-primary font-medium'
+                  : 'text-neutral hover:text-foreground'
+              }`}
+            >
+              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
+                />
+              </svg>
+              Subscribers
+            </Link>
+            {/* Sub-nav: Subscription Analytics */}
+            <Link
+              href='/subscriptions/analytics'
+              onClick={closeMobile}
+              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                pathname === '/subscriptions/analytics'
+                  ? 'text-primary font-medium'
+                  : 'text-neutral hover:text-foreground'
+              }`}
+            >
+              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'
+                />
+              </svg>
+              Analytics
+            </Link>
+            {/* Sub-nav: Subscription Revenue */}
+            <Link
+              href='/subscriptions/revenue'
+              onClick={closeMobile}
+              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                pathname === '/subscriptions/revenue'
+                  ? 'text-primary font-medium'
+                  : 'text-neutral hover:text-foreground'
+              }`}
+            >
+              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                />
+              </svg>
+              Revenue
+            </Link>
+          </li>
         </ul>
 
-        {/* Notifications + Activity Log - pinned to bottom */}
+        {/* Notifications + Activity Log + Support - pinned to bottom */}
         <div className='mt-auto flex flex-col gap-1 pt-4'>
+          <Link
+            href='/support'
+            onClick={closeMobile}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+              isActive('/support')
+                ? 'bg-primary/10 text-primary'
+                : 'text-foreground hover:bg-tertiary'
+            }`}
+          >
+            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M18.364 5.636A9 9 0 105.636 18.364 9 9 0 0018.364 5.636zM9.879 9.879a3 3 0 114.243 4.243M12 17h.01'
+              />
+            </svg>
+            Support
+          </Link>
           <Link
             href='/notifications'
             onClick={closeMobile}

@@ -1,8 +1,14 @@
+import type { TierId } from '@/lib/tiers'
+
 export type Channel = 'in_app' | 'email' | 'telegram'
+
+export type { TierId }
 
 export type AudienceFilter =
   | { type: 'everyone' }
   | { type: 'specific'; addresses: string[] }
+  | { type: 'unsubscribed' }
+  | { type: 'tiers'; tierIds: TierId[] }
 
 export interface PreviewRequest {
   channels: Channel[]

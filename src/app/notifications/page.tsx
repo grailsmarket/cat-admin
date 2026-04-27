@@ -12,9 +12,10 @@ import {
   type Channel,
   type AudienceFilter,
 } from '@/api/notifications'
+import { TIER_LABELS, TIER_IDS, type TierId } from '@/lib/tiers'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
-type AudienceType = 'everyone' | 'specific'
+type AudienceType = 'everyone' | 'specific' | 'unsubscribed' | 'tiers'
 type Chip = { address: string; label: string }
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
@@ -32,6 +33,7 @@ export default function NotificationsPage() {
   const [specificInput, setSpecificInput] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
+  const [selectedTiers, setSelectedTiers] = useState<TierId[]>([])
 
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -48,10 +50,18 @@ export default function NotificationsPage() {
   if (email) channels.push('email')
   if (telegram) channels.push('telegram')
 
-  const audience: AudienceFilter =
-    audienceType === 'everyone'
-      ? { type: 'everyone' }
-      : { type: 'specific', addresses: chips.map((c) => c.address) }
+  const audience: AudienceFilter = (() => {
+    switch (audienceType) {
+      case 'everyone':
+        return { type: 'everyone' }
+      case 'specific':
+        return { type: 'specific', addresses: chips.map((c) => c.address) }
+      case 'unsubscribed':
+        return { type: 'unsubscribed' }
+      case 'tiers':
+        return { type: 'tiers', tierIds: selectedTiers }
+    }
+  })()
 
   const payload = {
     title: title.trim(),
@@ -61,7 +71,9 @@ export default function NotificationsPage() {
     channels,
     audience,
   }
-  const audienceValid = audience.type !== 'specific' || audience.addresses.length > 0
+  const audienceValid =
+    (audience.type !== 'specific' || audience.addresses.length > 0) &&
+    (audience.type !== 'tiers' || audience.tierIds.length > 0)
   const canCompose =
     payload.title.length > 0 && payload.body.length > 0 && channels.length >= 1 && audienceValid
 
@@ -230,6 +242,7 @@ export default function NotificationsPage() {
         setImageUrl(null)
         setImageError(null)
         setChips([])
+        setSelectedTiers([])
         setAudienceType('everyone')
         setPreview(null)
         history.refetch()
@@ -401,7 +414,55 @@ export default function NotificationsPage() {
               />
               Specific user(s)
             </label>
+            <label className='flex items-center gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'unsubscribed'}
+                onChange={() => changeAudienceType('unsubscribed')}
+              />
+              Unsubscribed users
+            </label>
+            <label className='flex items-center gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'tiers'}
+                onChange={() => changeAudienceType('tiers')}
+              />
+              Subscription tiers
+            </label>
           </div>
+
+          {audienceType === 'tiers' && (
+            <div className='mt-3 rounded-lg border border-dashed p-3'>
+              <div className='flex flex-wrap gap-4 text-sm'>
+                {TIER_IDS.map((tid) => {
+                  const checked = selectedTiers.includes(tid)
+                  return (
+                    <label key={tid} className='flex items-center gap-2'>
+                      <input
+                        type='checkbox'
+                        checked={checked}
+                        onChange={(e) => {
+                          setSelectedTiers(
+                            e.target.checked
+                              ? [...selectedTiers, tid].sort((a, b) => a - b) as TierId[]
+                              : selectedTiers.filter((t) => t !== tid)
+                          )
+                          resetPreview()
+                        }}
+                      />
+                      {TIER_LABELS[tid]}
+                    </label>
+                  )
+                })}
+              </div>
+              {selectedTiers.length === 0 && (
+                <div className='text-neutral mt-2 text-xs'>Select at least one tier to send.</div>
+              )}
+            </div>
+          )}
 
           {audienceType === 'specific' && (
             <div className='mt-3 rounded-lg border border-dashed p-3'>
@@ -584,14 +645,27 @@ export default function NotificationsPage() {
         message={
           <div className='space-y-2 text-left'>
             <div>
-              {audience.type === 'everyone' ? (
+              {audience.type === 'everyone' && (
                 <>
                   This will notify <b>all users</b> via <b>{channels.join(', ')}</b>.
                 </>
-              ) : (
+              )}
+              {audience.type === 'specific' && (
                 <>
                   This will notify <b>{audience.addresses.length}</b> user
                   {audience.addresses.length === 1 ? '' : 's'} via <b>{channels.join(', ')}</b>.
+                </>
+              )}
+              {audience.type === 'unsubscribed' && (
+                <>
+                  This will notify <b>unsubscribed users</b> via <b>{channels.join(', ')}</b>.
+                </>
+              )}
+              {audience.type === 'tiers' && (
+                <>
+                  This will notify subscribers at{' '}
+                  <b>{audience.tierIds.map((t) => TIER_LABELS[t]).join(', ')}</b> via{' '}
+                  <b>{channels.join(', ')}</b>.
                 </>
               )}
             </div>
