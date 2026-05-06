@@ -324,6 +324,25 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             Comments
           </Link>
           <Link
+            href='/chat-moderation'
+            onClick={closeMobile}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+              isActive('/chat-moderation')
+                ? 'bg-primary/10 text-primary'
+                : 'text-foreground hover:bg-tertiary'
+            }`}
+          >
+            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M7 8h10M7 12h6m-7 8l4-4h8a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h0z'
+              />
+            </svg>
+            Chat Moderation
+          </Link>
+          <Link
             href='/notifications'
             onClick={closeMobile}
             className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
