@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { fetchAccount } from 'ethereum-identity-kit'
 import {
@@ -14,7 +14,7 @@ import {
 } from '@/api/notifications'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
-type AudienceType = 'everyone' | 'specific'
+type AudienceType = 'everyone' | 'specific' | 'unverified_email'
 type Chip = { address: string; label: string }
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
@@ -51,7 +51,15 @@ export default function NotificationsPage() {
   const audience: AudienceFilter =
     audienceType === 'everyone'
       ? { type: 'everyone' }
-      : { type: 'specific', addresses: chips.map((c) => c.address) }
+      : audienceType === 'unverified_email'
+        ? { type: 'unverified_email' }
+        : { type: 'specific', addresses: chips.map((c) => c.address) }
+
+  const emailDisabled = audienceType === 'unverified_email'
+
+  useEffect(() => {
+    if (audienceType === 'unverified_email' && email) setEmail(false)
+  }, [audienceType, email])
 
   const payload = {
     title: title.trim(),
@@ -401,6 +409,21 @@ export default function NotificationsPage() {
               />
               Specific user(s)
             </label>
+            <label className='flex items-start gap-2'>
+              <input
+                type='radio'
+                name='audience'
+                checked={audienceType === 'unverified_email'}
+                onChange={() => changeAudienceType('unverified_email')}
+                className='mt-1'
+              />
+              <span>
+                Unverified email
+                <span className='text-neutral block text-xs'>
+                  Users who have an email but haven&apos;t confirmed it.
+                </span>
+              </span>
+            </label>
           </div>
 
           {audienceType === 'specific' && (
@@ -467,16 +490,25 @@ export default function NotificationsPage() {
               <input type='checkbox' checked disabled />
               In-app (always on)
             </label>
-            <label className='flex items-center gap-2'>
+            <label className={`flex items-start gap-2 ${emailDisabled ? 'opacity-60' : ''}`}>
               <input
                 type='checkbox'
                 checked={email}
+                disabled={emailDisabled}
                 onChange={(e) => {
                   setEmail(e.target.checked)
                   resetPreview()
                 }}
+                className='mt-1'
               />
-              Email (verified addresses only)
+              <span>
+                Email (verified addresses only)
+                {emailDisabled && (
+                  <span className='text-neutral block text-xs'>
+                    Disabled for this audience — recipients have no verified email.
+                  </span>
+                )}
+              </span>
             </label>
             <label className='flex items-center gap-2'>
               <input
@@ -587,6 +619,11 @@ export default function NotificationsPage() {
               {audience.type === 'everyone' ? (
                 <>
                   This will notify <b>all users</b> via <b>{channels.join(', ')}</b>.
+                </>
+              ) : audience.type === 'unverified_email' ? (
+                <>
+                  This will notify <b>users with an unverified email</b> via{' '}
+                  <b>{channels.join(', ')}</b>.
                 </>
               ) : (
                 <>
