@@ -3,6 +3,7 @@ export type Channel = 'in_app' | 'email' | 'telegram'
 export type AudienceFilter =
   | { type: 'everyone' }
   | { type: 'specific'; addresses: string[] }
+  | { type: 'unverified_email' }
 
 export interface PreviewRequest {
   channels: Channel[]
@@ -16,6 +17,14 @@ export interface PreviewResponse {
     byChannel: { in_app: number; email: number; telegram: number }
   }
   error?: string
+}
+
+async function parseJsonWithErrorString(response: Response): Promise<any> {
+  const data = await response.json()
+  if (data && data.error && typeof data.error !== 'string') {
+    data.error = data.error.message || data.error.code || 'Request failed'
+  }
+  return data
 }
 
 export interface ComposePayload {
@@ -76,7 +85,7 @@ export async function previewNotification(payload: PreviewRequest): Promise<Prev
     credentials: 'include',
     body: JSON.stringify(payload),
   })
-  return response.json()
+  return parseJsonWithErrorString(response)
 }
 
 export async function sendTestNotification(payload: ComposePayload): Promise<SendResponse> {
@@ -86,7 +95,7 @@ export async function sendTestNotification(payload: ComposePayload): Promise<Sen
     credentials: 'include',
     body: JSON.stringify(payload),
   })
-  return response.json()
+  return parseJsonWithErrorString(response)
 }
 
 export async function sendBroadcast(payload: BroadcastPayload): Promise<SendResponse> {
@@ -96,7 +105,7 @@ export async function sendBroadcast(payload: BroadcastPayload): Promise<SendResp
     credentials: 'include',
     body: JSON.stringify(payload),
   })
-  return response.json()
+  return parseJsonWithErrorString(response)
 }
 
 export async function listBroadcasts(
@@ -106,7 +115,7 @@ export async function listBroadcasts(
   const response = await fetch(`/api/notifications?page=${page}&limit=${limit}`, {
     credentials: 'include',
   })
-  return response.json()
+  return parseJsonWithErrorString(response)
 }
 
 export async function uploadNotificationImage(file: File): Promise<ImageUploadResponse> {
@@ -117,5 +126,5 @@ export async function uploadNotificationImage(file: File): Promise<ImageUploadRe
     credentials: 'include',
     body: formData,
   })
-  return response.json()
+  return parseJsonWithErrorString(response)
 }
