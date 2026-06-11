@@ -11,9 +11,10 @@ import {
   deleteUserChatMessages,
   type ChatModInfo,
 } from '@/api/chat-moderation'
+import { banUserFromGlobalChat, unbanUserFromGlobalChat } from '@/api/global-chat'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
-type ConfirmAction = 'ban' | 'unban' | 'delete-messages' | null
+type ConfirmAction = 'ban' | 'unban' | 'global-ban' | 'global-unban' | 'delete-messages' | null
 
 export default function ChatUserModerationPage({
   params,
@@ -55,6 +56,22 @@ export default function ChatUserModerationPage({
     },
   })
 
+  const globalBanMutation = useMutation({
+    mutationFn: () => banUserFromGlobalChat(userId, reason),
+    onSuccess: (r) => {
+      if (!r.success) return toast.error(r.error?.message ?? 'Failed')
+      onActionSuccess('User banned from global chat')()
+    },
+  })
+
+  const globalUnbanMutation = useMutation({
+    mutationFn: () => unbanUserFromGlobalChat(userId, reason),
+    onSuccess: (r) => {
+      if (!r.success) return toast.error(r.error?.message ?? 'Failed')
+      onActionSuccess('User unbanned from global chat')()
+    },
+  })
+
   const deleteMessagesMutation = useMutation({
     mutationFn: () => deleteUserChatMessages(userId, reason),
     onSuccess: (r) => {
@@ -82,9 +99,14 @@ export default function ChatUserModerationPage({
 
   const info: ChatModInfo = data.data
   const isBanned = info.status.status === 'banned'
+  const isGlobalBanned = info.status.global_status === 'banned'
 
   const isPending =
-    banMutation.isPending || unbanMutation.isPending || deleteMessagesMutation.isPending
+    banMutation.isPending ||
+    unbanMutation.isPending ||
+    globalBanMutation.isPending ||
+    globalUnbanMutation.isPending ||
+    deleteMessagesMutation.isPending
 
   return (
     <div className='space-y-6 p-6'>
@@ -107,6 +129,19 @@ export default function ChatUserModerationPage({
               Restore
             </button>
           )}
+          {!isGlobalBanned && (
+            <button onClick={() => setConfirmAction('global-ban')} className='btn btn-danger'>
+              Ban from global chat
+            </button>
+          )}
+          {isGlobalBanned && (
+            <button
+              onClick={() => setConfirmAction('global-unban')}
+              className='btn btn-secondary'
+            >
+              Unban (global)
+            </button>
+          )}
           <button
             onClick={() => setConfirmAction('delete-messages')}
             className='btn btn-danger'
@@ -119,7 +154,7 @@ export default function ChatUserModerationPage({
 
       <div className='card grid grid-cols-2 gap-4 md:grid-cols-4'>
         <div>
-          <div className='text-neutral text-xs'>Status</div>
+          <div className='text-neutral text-xs'>Status (all chats)</div>
           <div
             className={
               isBanned
@@ -129,6 +164,17 @@ export default function ChatUserModerationPage({
           >
             {info.status.status}
           </div>
+        </div>
+        <div>
+          <div className='text-neutral text-xs'>Global chat</div>
+          <div className={isGlobalBanned ? 'font-medium text-amber-500' : 'text-success font-medium'}>
+            {isGlobalBanned ? 'banned' : 'active'}
+          </div>
+          {info.status.global_banned_at && (
+            <div className='text-neutral text-xs'>
+              since {new Date(info.status.global_banned_at).toLocaleDateString()}
+            </div>
+          )}
         </div>
         <div>
           <div className='text-neutral text-xs'>Messages (visible / total)</div>
@@ -241,30 +287,43 @@ export default function ChatUserModerationPage({
         }}
         isLoading={isPending}
         onConfirm={() => {
-          if (!reason.trim() && confirmAction !== 'unban') {
+          const reasonOptional = confirmAction === 'unban' || confirmAction === 'global-unban'
+          if (!reason.trim() && !reasonOptional) {
             toast.error('Reason is required')
             return
           }
           if (confirmAction === 'ban') banMutation.mutate()
           else if (confirmAction === 'unban') unbanMutation.mutate()
+          else if (confirmAction === 'global-ban') globalBanMutation.mutate()
+          else if (confirmAction === 'global-unban') globalUnbanMutation.mutate()
           else if (confirmAction === 'delete-messages') deleteMessagesMutation.mutate()
         }}
-        variant={confirmAction === 'unban' ? 'default' : 'danger'}
+        variant={
+          confirmAction === 'unban' || confirmAction === 'global-unban' ? 'default' : 'danger'
+        }
         title={
           confirmAction === 'ban'
             ? 'Ban user from messaging?'
             : confirmAction === 'unban'
               ? 'Restore messaging access?'
-              : confirmAction === 'delete-messages'
-                ? `Delete ${info.messageStats.visible} message${info.messageStats.visible === 1 ? '' : 's'}?`
-                : ''
+              : confirmAction === 'global-ban'
+                ? 'Ban user from global chat?'
+                : confirmAction === 'global-unban'
+                  ? 'Unban user from global chat?'
+                  : confirmAction === 'delete-messages'
+                    ? `Delete ${info.messageStats.visible} message${info.messageStats.visible === 1 ? '' : 's'}?`
+                    : ''
         }
         confirmText={
           confirmAction === 'ban'
             ? 'Ban user'
             : confirmAction === 'unban'
               ? 'Restore'
-              : 'Delete all messages'
+              : confirmAction === 'global-ban'
+                ? 'Ban from global chat'
+                : confirmAction === 'global-unban'
+                  ? 'Unban'
+                  : 'Delete all messages'
         }
         message={
           <div className='space-y-3 text-left'>
@@ -279,7 +338,19 @@ export default function ChatUserModerationPage({
             {confirmAction === 'ban' && (
               <p className='text-sm'>
                 The user will receive a 403 when trying to send a message or start a new
-                chat. Use Restore to lift the ban.
+                chat — direct messages AND global chat. Use Restore to lift the ban.
+              </p>
+            )}
+            {confirmAction === 'global-ban' && (
+              <p className='text-sm'>
+                Bans the user from the global chat only (messages and reactions). Direct
+                messages are unaffected.
+              </p>
+            )}
+            {confirmAction === 'global-unban' && (
+              <p className='text-sm'>
+                Lifts the global-chat-only ban. An all-chats ban, if present, stays in
+                place.
               </p>
             )}
             <div>
@@ -290,7 +361,7 @@ export default function ChatUserModerationPage({
                 onChange={(e) => setReason(e.target.value)}
                 className='border-border bg-tertiary w-full rounded border px-2 py-1 text-sm'
                 placeholder={
-                  confirmAction === 'unban'
+                  confirmAction === 'unban' || confirmAction === 'global-unban'
                     ? 'Optional note for the audit log'
                     : 'Reason shown to the user'
                 }

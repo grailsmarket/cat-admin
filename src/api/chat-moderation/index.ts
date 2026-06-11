@@ -10,6 +10,8 @@ export interface ChatModStatus {
   user_id: number
   status: 'active' | 'banned'
   banned_at: string | null
+  global_status: 'active' | 'banned'
+  global_banned_at: string | null
   last_action_by: number | null
   last_action_reason: string | null
 }
@@ -24,7 +26,14 @@ export interface ChatModMessage {
 
 export interface ChatModLogEntry {
   id: number
-  action: 'ban' | 'unban' | 'delete_messages'
+  action:
+    | 'ban'
+    | 'unban'
+    | 'delete_messages'
+    | 'delete_message'
+    | 'config_update'
+    | 'global_ban'
+    | 'global_unban'
   reason: string | null
   metadata: unknown
   created_at: string
