@@ -5,6 +5,12 @@ export interface AdminGlobalMessage {
   body: string
   created_at: string
   deleted_at: string | null
+  /** User id of whoever deleted the message (author for self-delete, admin for moderation). */
+  deleted_by: number | null
+  /** Admin moderation reason, when an admin deleted it. */
+  deleted_reason: string | null
+  /** TRUE when an admin (not the author) deleted it. Derived server-side. */
+  deleted_by_admin: boolean
   sender_address: string
   sender_mod_status: 'active' | 'banned' | null
   sender_global_status: 'active' | 'banned' | null

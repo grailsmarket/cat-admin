@@ -253,6 +253,14 @@ export default function GlobalChatPage() {
                     <span className={m.deleted_at ? 'text-error' : 'text-success'}>
                       {m.deleted_at ? 'deleted' : 'visible'}
                     </span>
+                    {m.deleted_at && (
+                      <span
+                        className='text-neutral ml-1'
+                        title={m.deleted_reason ?? undefined}
+                      >
+                        {m.deleted_by_admin ? 'by Admin' : 'by user'}
+                      </span>
+                    )}
                   </td>
                   <td className='px-4 py-3 text-right whitespace-nowrap'>
                     {!m.deleted_at && (
