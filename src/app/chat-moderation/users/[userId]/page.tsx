@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import {
   type ChatModInfo,
 } from '@/api/chat-moderation'
 import { banUserFromGlobalChat, unbanUserFromGlobalChat } from '@/api/global-chat'
+import { resolveAddressToEns } from '@/lib/ens'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
 type ConfirmAction = 'ban' | 'unban' | 'global-ban' | 'global-unban' | 'delete-messages' | null
@@ -32,6 +33,13 @@ export default function ChatUserModerationPage({
 
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null)
   const [reason, setReason] = useState('')
+  const [ensName, setEnsName] = useState<string | null>(null)
+
+  const address = data?.data?.user.address
+  useEffect(() => {
+    if (!address) return
+    resolveAddressToEns(address).then(setEnsName)
+  }, [address])
 
   const onActionSuccess = (msg: string) => () => {
     toast.success(msg)
@@ -115,7 +123,8 @@ export default function ChatUserModerationPage({
           <Link href='/chat-moderation' className='text-primary text-sm hover:underline'>
             ← Back to chat moderation
           </Link>
-          <h1 className='mt-2 text-2xl font-bold'>User #{info.user.id}</h1>
+          <h1 className='mt-2 text-2xl font-bold'>{ensName ?? `User #${info.user.id}`}</h1>
+          {ensName && <p className='text-neutral text-xs'>User #{info.user.id}</p>}
           <p className='text-neutral font-mono text-sm'>{info.user.address}</p>
         </div>
         <div className='flex gap-2'>

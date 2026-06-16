@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import {
   type AdminGlobalMessage,
 } from '@/api/global-chat'
 import { banUserFromChat } from '@/api/chat-moderation'
+import { resolveAddresses } from '@/lib/ens'
 import { ConfirmModal } from '@/components/ConfirmModal'
 
 const STATUS_OPTIONS = ['all', 'visible', 'deleted'] as const
@@ -41,6 +42,7 @@ export default function GlobalChatPage() {
   const [banScope, setBanScope] = useState<BanScope>('global')
   const [confirmUnbanGlobal, setConfirmUnbanGlobal] = useState<AdminGlobalMessage | null>(null)
   const [unbanReason, setUnbanReason] = useState('')
+  const [ensNames, setEnsNames] = useState<Map<string, string | null>>(new Map())
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['admin', 'global-chat', 'messages', appliedFilters, page],
@@ -119,8 +121,26 @@ export default function GlobalChatPage() {
     setAppliedFilters({})
   }
 
-  const messages = data?.data?.messages ?? []
+  const messages = useMemo(() => data?.data?.messages ?? [], [data])
   const pagination = data?.data?.pagination
+
+  // Resolve sender addresses to ENS names for easier identification
+  useEffect(() => {
+    const addresses = messages.map((m) => m.sender_address).filter(Boolean)
+    if (addresses.length > 0) {
+      resolveAddresses(addresses).then(setEnsNames)
+    }
+  }, [messages])
+
+  const renderSender = (address: string) => {
+    const ensName = ensNames.get(address.toLowerCase())
+    if (ensName) {
+      return <span title={address}>{ensName}</span>
+    }
+    return (
+      <span className='font-mono'>{`${address.slice(0, 8)}…${address.slice(-4)}`}</span>
+    )
+  }
 
   return (
     <div className='space-y-6 p-6'>
@@ -224,12 +244,12 @@ export default function GlobalChatPage() {
                   <td className='text-neutral px-4 py-3 text-xs whitespace-nowrap'>
                     {new Date(m.created_at).toLocaleString()}
                   </td>
-                  <td className='px-4 py-3 font-mono text-xs whitespace-nowrap'>
+                  <td className='px-4 py-3 text-xs whitespace-nowrap'>
                     <Link
                       href={`/chat-moderation/users/${m.sender_user_id}`}
                       className='text-primary hover:underline'
                     >
-                      {`${m.sender_address.slice(0, 8)}…${m.sender_address.slice(-4)}`}
+                      {renderSender(m.sender_address)}
                     </Link>
                     {m.sender_mod_status === 'banned' && (
                       <span className='bg-error/20 text-error ml-2 inline-block rounded px-1.5 py-0.5 text-[10px]'>
