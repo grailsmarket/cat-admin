@@ -362,6 +362,25 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             Global Chat
           </Link>
           <Link
+            href='/valuations/settings'
+            onClick={closeMobile}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+              isActive('/valuations')
+                ? 'bg-primary/10 text-primary'
+                : 'text-foreground hover:bg-tertiary'
+            }`}
+          >
+            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M9 7h6m-6 4h6m-6 4h4m5 4a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2h12z'
+              />
+            </svg>
+            Valuations
+          </Link>
+          <Link
             href='/notifications'
             onClick={closeMobile}
             className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
