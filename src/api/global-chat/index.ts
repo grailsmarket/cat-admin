@@ -73,6 +73,12 @@ export interface GlobalChatConfig {
   quota_without_name: number
   max_message_length: number
   rate_limit_per_minute: number
+  /** Master kill switch for image sending across ALL chats (global + DMs). */
+  images_enabled: boolean
+  /** Global chat only: hard-delete messages older than this many days. */
+  message_retention_days: number
+  /** All chats: expire (delete from storage) images older than this many days. */
+  image_retention_days: number
 }
 
 export interface GlobalChatConfigResponse {
