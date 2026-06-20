@@ -69,10 +69,42 @@ const FIELDS: FieldSpec[] = [
     min: 1,
     max: 600,
   },
+  {
+    key: 'images_enabled',
+    label: 'Image uploads',
+    description:
+      'Master kill switch for sending images in ALL chats (global + DMs). Turn off to disable image sending everywhere immediately.',
+    type: 'boolean',
+  },
+  {
+    key: 'message_retention_days',
+    label: 'Global message retention (days)',
+    description:
+      'Global chat only: messages older than this are permanently deleted (image + text). Runs daily.',
+    type: 'int',
+    min: 1,
+    max: 3650,
+  },
+  {
+    key: 'image_retention_days',
+    label: 'Image retention (days)',
+    description:
+      'All chats: attached images older than this are deleted from storage — the message text stays. Runs daily.',
+    type: 'int',
+    min: 1,
+    max: 3650,
+  },
 ]
 
+// Boolean-typed config keys (derived from FIELDS) coerce to a real boolean;
+// everything else is a number (or null for nullable-int). Keeping this in sync
+// with FIELDS avoids a boolean being sent to the API as 1/0.
+const BOOLEAN_KEYS = new Set<keyof GlobalChatConfig>(
+  FIELDS.filter((f) => f.type === 'boolean').map((f) => f.key)
+)
+
 function normalize(key: keyof GlobalChatConfig, value: GlobalChatConfig[keyof GlobalChatConfig]) {
-  if (key === 'enabled') return Boolean(value)
+  if (BOOLEAN_KEYS.has(key)) return Boolean(value)
   return value === null ? null : Number(value)
 }
 
