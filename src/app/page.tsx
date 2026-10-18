@@ -64,7 +64,7 @@ export default function DashboardPage() {
   const hasError = !!error || (data?.success === false)
 
   return (
-    <DashboardLayout>
+    <DashboardLayout section='dashboard'>
       <div className='p-4 lg:p-8'>
         {/* Header */}
         <div className='mb-8'>

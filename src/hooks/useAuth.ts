@@ -6,6 +6,7 @@ import { verifySignature } from '@/api/auth/verifySignature'
 import { checkAuthentication } from '@/api/auth/checkAuthentication'
 import { logout } from '@/api/auth/logout'
 import { Address } from 'viem'
+import type { Permission } from '@/lib/permissions'
 
 export const useAuth = () => {
   const [currAddress, setCurrAddress] = useState<Address | null>(null)
@@ -16,7 +17,7 @@ export const useAuth = () => {
     data: authData,
     isLoading: authStatusIsLoading,
     refetch: refetchAuthStatus,
-  } = useQuery<{ status: AuthenticationStatus; isAdmin: boolean }>({
+  } = useQuery<{ status: AuthenticationStatus; isAdmin: boolean; permissions: Permission[] }>({
     queryKey: ['auth', 'status'],
     queryFn: async () => {
       const result = await checkAuthentication()
@@ -25,16 +26,18 @@ export const useAuth = () => {
         return {
           status: 'authenticated' as AuthenticationStatus,
           isAdmin: result.data.isAdmin,
+          permissions: result.data.permissions || [],
         }
       }
 
       return {
         status: 'unauthenticated' as AuthenticationStatus,
         isAdmin: false,
+        permissions: [],
       }
     },
-    placeholderData: { status: 'loading', isAdmin: false },
-    initialData: { status: 'loading', isAdmin: false },
+    placeholderData: { status: 'loading', isAdmin: false, permissions: [] },
+    initialData: { status: 'loading', isAdmin: false, permissions: [] },
     enabled: !!address,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
@@ -80,6 +83,7 @@ export const useAuth = () => {
     disconnect,
     authStatus: authData?.status || 'loading',
     isAdmin: authData?.isAdmin || false,
+    permissions: authData?.permissions || [],
     authStatusIsLoading,
     refetchAuthStatus,
   }

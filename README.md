@@ -65,6 +65,9 @@ GRAILS_API_URL=https://grails-api.ethid.org/api/v1
 # Comma-separated list of admin wallet addresses
 ADMIN_ADDRESSES=0x123...,0x456...
 
+# Scoped (non-admin) access, optional
+ACCESS_GRANTS=0x789...=analytics:read,dashboard:read
+
 # WalletConnect project ID (required)
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
 ```
@@ -82,10 +85,24 @@ Open [http://localhost:3000](http://localhost:3000) and connect your wallet.
 
 1. Connect your Ethereum wallet
 2. Sign a message to prove ownership
-3. Your address is checked against `ADMIN_ADDRESSES`
+3. Your address is checked against `ADMIN_ADDRESSES` and `ACCESS_GRANTS`
 4. If authorized, you get a session cookie
 
-Only wallets in the `ADMIN_ADDRESSES` list can access the admin panel.
+### Access control
+
+- `ADMIN_ADDRESSES` — comma-separated wallets with full access to every section.
+- `ACCESS_GRANTS` — semicolon-separated `address=permission,permission` entries for scoped accounts.
+  A permission is `<section>:read` or `<section>:write` (write implies read).
+  Sections: `dashboard`, `categories`, `names`, `analytics`, `activity`, `comments`,
+  `chat-moderation`, `global-chat`, `valuations`, `notifications`.
+
+API routes guarded with `requireAccess(request, section)` map GET/HEAD to `read` and all other methods to
+`write`. Routes still using `verifyAdmin` are full-admin only, so scoped accounts are denied by default
+until a route is explicitly opted in. Currently opted in: analytics (`analytics`) and the overview stats
+(`dashboard`).
+
+Scoped accounts should not have `is_admin` set in the grails-backend `users` table, so backend admin
+endpoints stay closed to them as well.
 
 ## Security
 

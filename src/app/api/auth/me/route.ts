@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAdmin } from '@/lib/auth'
+import { getPermissions, verifyTokenAndGetAddress } from '@/lib/auth'
+import { hasFullAccess } from '@/lib/permissions'
 
 // Check authentication status
 export async function GET(request: NextRequest) {
@@ -10,17 +11,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
     }
 
-    const { isAdmin, address } = await verifyAdmin(token)
+    const address = await verifyTokenAndGetAddress(token)
 
     if (!address) {
       return NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 })
     }
 
+    const permissions = getPermissions(address)
+
     return NextResponse.json({
       success: true,
       data: {
         address,
-        isAdmin,
+        isAdmin: hasFullAccess(permissions),
+        permissions,
       },
     })
   } catch (error) {

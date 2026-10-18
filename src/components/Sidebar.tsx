@@ -16,7 +16,7 @@ type SidebarProps = {
 export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { userAddress, handleSignOut } = useUserContext()
+  const { userAddress, handleSignOut, can } = useUserContext()
   const [quickSearch, setQuickSearch] = useState('')
 
   // Fetch ENS name and avatar
@@ -81,23 +81,245 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
       {/* Navigation */}
       <nav className='flex flex-1 flex-col p-4'>
         {/* Quick search bar */}
-        <form onSubmit={handleQuickSearch} className='mb-4'>
-          <input
-            type='text'
-            value={quickSearch}
-            onChange={(e) => setQuickSearch(e.target.value)}
-            placeholder='Quick name search...'
-            className='w-full rounded-lg border border-border bg-tertiary px-3 py-2 text-sm placeholder:text-neutral focus:border-primary focus:outline-none'
-          />
-        </form>
+        {can('names') && (
+          <form onSubmit={handleQuickSearch} className='mb-4'>
+            <input
+              type='text'
+              value={quickSearch}
+              onChange={(e) => setQuickSearch(e.target.value)}
+              placeholder='Quick name search...'
+              className='w-full rounded-lg border border-border bg-tertiary px-3 py-2 text-sm placeholder:text-neutral focus:border-primary focus:outline-none'
+            />
+          </form>
+        )}
 
         <ul className='space-y-1'>
-          <li>
+          {can('dashboard') && (
+            <li>
+              <Link
+                href='/'
+                onClick={closeMobile}
+                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                  pathname === '/'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-foreground hover:bg-tertiary'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'
+                  />
+                </svg>
+                Dashboard
+              </Link>
+            </li>
+          )}
+          {can('categories') && (
+            <li>
+              {/* Parent: Categories */}
+              <div
+                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium ${
+                  pathname === '/categories' || pathname.startsWith('/categories/')
+                    ? 'text-primary'
+                    : 'text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
+                  />
+                </svg>
+                Categories
+              </div>
+              {/* Sub-nav: Cat Dashboard */}
+              <Link
+                href='/categories/dashboard'
+                onClick={closeMobile}
+                className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                  pathname === '/categories/dashboard'
+                    ? 'text-primary font-medium'
+                    : 'text-neutral hover:text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
+                  />
+                </svg>
+                Cat Dashboard
+              </Link>
+              {/* Sub-nav: View Categories */}
+              <Link
+                href='/categories'
+                onClick={closeMobile}
+                className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                  pathname === '/categories'
+                    ? 'text-primary font-medium'
+                    : 'text-neutral hover:text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M4 6h16M4 10h16M4 14h16M4 18h16'
+                  />
+                </svg>
+                View Categories
+              </Link>
+              {/* Sub-nav: New Category */}
+              <Link
+                href='/categories/new'
+                onClick={closeMobile}
+                className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                  pathname === '/categories/new'
+                    ? 'text-primary font-medium'
+                    : 'text-neutral hover:text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z'
+                  />
+                </svg>
+                New Category
+              </Link>
+            </li>
+          )}
+          {can('names') && (
+            <li>
+              <Link
+                href='/names'
+                onClick={closeMobile}
+                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                  isActive('/names')
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-foreground hover:bg-tertiary'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                  />
+                </svg>
+                Name Lookup
+              </Link>
+            </li>
+          )}
+          {can('analytics') && (
+            <li>
+              {/* Parent: Analytics */}
+              <div
+                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium ${
+                  pathname === '/analytics' || pathname.startsWith('/analytics/')
+                    ? 'text-primary'
+                    : 'text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
+                  />
+                </svg>
+                Analytics
+              </div>
+              {/* Sub-nav: Reg/Renewal */}
+              <Link
+                href='/analytics'
+                onClick={closeMobile}
+                className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                  pathname === '/analytics'
+                    ? 'text-primary font-medium'
+                    : 'text-neutral hover:text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
+                  />
+                </svg>
+                Reg/Renewal
+              </Link>
+              {/* Sub-nav: Requests */}
+              <Link
+                href='/analytics/requests'
+                onClick={closeMobile}
+                className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                  pathname === '/analytics/requests'
+                    ? 'text-primary font-medium'
+                    : 'text-neutral hover:text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9'
+                  />
+                </svg>
+                Requests
+              </Link>
+              {/* Sub-nav: Views */}
+              <Link
+                href='/analytics/views'
+                onClick={closeMobile}
+                className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                  pathname === '/analytics/views'
+                    ? 'text-primary font-medium'
+                    : 'text-neutral hover:text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'
+                  />
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'
+                  />
+                </svg>
+                Views
+              </Link>
+            </li>
+          )}
+        </ul>
+
+        {/* Notifications + Activity Log - pinned to bottom */}
+        <div className='mt-auto flex flex-col gap-1 pt-4'>
+          {can('comments') && (
             <Link
-              href='/'
+              href='/comments'
               onClick={closeMobile}
               className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                pathname === '/'
+                isActive('/comments')
                   ? 'bg-primary/10 text-primary'
                   : 'text-foreground hover:bg-tertiary'
               }`}
@@ -107,98 +329,18 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                   strokeLinecap='round'
                   strokeLinejoin='round'
                   strokeWidth={2}
-                  d='M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'
+                  d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z'
                 />
               </svg>
-              Dashboard
+              Comments
             </Link>
-          </li>
-          <li>
-            {/* Parent: Categories */}
-            <div
-              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium ${
-                pathname === '/categories' || pathname.startsWith('/categories/')
-                  ? 'text-primary'
-                  : 'text-foreground'
-              }`}
-            >
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
-                />
-              </svg>
-              Categories
-            </div>
-            {/* Sub-nav: Cat Dashboard */}
+          )}
+          {can('chat-moderation') && (
             <Link
-              href='/categories/dashboard'
-              onClick={closeMobile}
-              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
-                pathname === '/categories/dashboard'
-                  ? 'text-primary font-medium'
-                  : 'text-neutral hover:text-foreground'
-              }`}
-            >
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
-                />
-              </svg>
-              Cat Dashboard
-            </Link>
-            {/* Sub-nav: View Categories */}
-            <Link
-              href='/categories'
-              onClick={closeMobile}
-              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
-                pathname === '/categories'
-                  ? 'text-primary font-medium'
-                  : 'text-neutral hover:text-foreground'
-              }`}
-            >
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M4 6h16M4 10h16M4 14h16M4 18h16'
-                />
-              </svg>
-              View Categories
-            </Link>
-            {/* Sub-nav: New Category */}
-            <Link
-              href='/categories/new'
-              onClick={closeMobile}
-              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
-                pathname === '/categories/new'
-                  ? 'text-primary font-medium'
-                  : 'text-neutral hover:text-foreground'
-              }`}
-            >
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z'
-                />
-              </svg>
-              New Category
-            </Link>
-          </li>
-          <li>
-            <Link
-              href='/names'
+              href='/chat-moderation'
               onClick={closeMobile}
               className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                isActive('/names')
+                isActive('/chat-moderation')
                   ? 'bg-primary/10 text-primary'
                   : 'text-foreground hover:bg-tertiary'
               }`}
@@ -208,59 +350,20 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                   strokeLinecap='round'
                   strokeLinejoin='round'
                   strokeWidth={2}
-                  d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                  d='M7 8h10M7 12h6m-7 8l4-4h8a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h0z'
                 />
               </svg>
-              Name Lookup
+              Chat Moderation
             </Link>
-          </li>
-          <li>
-            {/* Parent: Analytics */}
-            <div
-              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium ${
-                pathname === '/analytics' || pathname.startsWith('/analytics/')
-                  ? 'text-primary'
-                  : 'text-foreground'
-              }`}
-            >
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
-                />
-              </svg>
-              Analytics
-            </div>
-            {/* Sub-nav: Reg/Renewal */}
+          )}
+          {can('global-chat') && (
             <Link
-              href='/analytics'
+              href='/global-chat'
               onClick={closeMobile}
-              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
-                pathname === '/analytics'
-                  ? 'text-primary font-medium'
-                  : 'text-neutral hover:text-foreground'
-              }`}
-            >
-              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
-                />
-              </svg>
-              Reg/Renewal
-            </Link>
-            {/* Sub-nav: Requests */}
-            <Link
-              href='/analytics/requests'
-              onClick={closeMobile}
-              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
-                pathname === '/analytics/requests'
-                  ? 'text-primary font-medium'
-                  : 'text-neutral hover:text-foreground'
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                isActive('/global-chat')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-foreground hover:bg-tertiary'
               }`}
             >
               <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
@@ -271,16 +374,17 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                   d='M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9'
                 />
               </svg>
-              Requests
+              Global Chat
             </Link>
-            {/* Sub-nav: Views */}
+          )}
+          {can('valuations') && (
             <Link
-              href='/analytics/views'
+              href='/valuations/settings'
               onClick={closeMobile}
-              className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
-                pathname === '/analytics/views'
-                  ? 'text-primary font-medium'
-                  : 'text-neutral hover:text-foreground'
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                isActive('/valuations')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-foreground hover:bg-tertiary'
               }`}
             >
               <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
@@ -288,136 +392,54 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                   strokeLinecap='round'
                   strokeLinejoin='round'
                   strokeWidth={2}
-                  d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'
+                  d='M9 7h6m-6 4h6m-6 4h4m5 4a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2h12z'
                 />
+              </svg>
+              Valuations
+            </Link>
+          )}
+          {can('notifications') && (
+            <Link
+              href='/notifications'
+              onClick={closeMobile}
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                isActive('/notifications')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-foreground hover:bg-tertiary'
+              }`}
+            >
+              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
                 <path
                   strokeLinecap='round'
                   strokeLinejoin='round'
                   strokeWidth={2}
-                  d='M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'
+                  d='M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'
                 />
               </svg>
-              Views
+              Notifications
             </Link>
-          </li>
-        </ul>
-
-        {/* Notifications + Activity Log - pinned to bottom */}
-        <div className='mt-auto flex flex-col gap-1 pt-4'>
-          <Link
-            href='/comments'
-            onClick={closeMobile}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-              isActive('/comments')
-                ? 'bg-primary/10 text-primary'
-                : 'text-foreground hover:bg-tertiary'
-            }`}
-          >
-            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z'
-              />
-            </svg>
-            Comments
-          </Link>
-          <Link
-            href='/chat-moderation'
-            onClick={closeMobile}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-              isActive('/chat-moderation')
-                ? 'bg-primary/10 text-primary'
-                : 'text-foreground hover:bg-tertiary'
-            }`}
-          >
-            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M7 8h10M7 12h6m-7 8l4-4h8a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h0z'
-              />
-            </svg>
-            Chat Moderation
-          </Link>
-          <Link
-            href='/global-chat'
-            onClick={closeMobile}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-              isActive('/global-chat')
-                ? 'bg-primary/10 text-primary'
-                : 'text-foreground hover:bg-tertiary'
-            }`}
-          >
-            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9'
-              />
-            </svg>
-            Global Chat
-          </Link>
-          <Link
-            href='/valuations/settings'
-            onClick={closeMobile}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-              isActive('/valuations')
-                ? 'bg-primary/10 text-primary'
-                : 'text-foreground hover:bg-tertiary'
-            }`}
-          >
-            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M9 7h6m-6 4h6m-6 4h4m5 4a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2h12z'
-              />
-            </svg>
-            Valuations
-          </Link>
-          <Link
-            href='/notifications'
-            onClick={closeMobile}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-              isActive('/notifications')
-                ? 'bg-primary/10 text-primary'
-                : 'text-foreground hover:bg-tertiary'
-            }`}
-          >
-            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'
-              />
-            </svg>
-            Notifications
-          </Link>
-          <Link
-            href='/activity'
-            onClick={closeMobile}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-              isActive('/activity')
-                ? 'bg-primary/10 text-primary'
-                : 'text-foreground hover:bg-tertiary'
-            }`}
-          >
-            <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
-              />
-            </svg>
-            Activity Log
-          </Link>
+          )}
+          {can('activity') && (
+            <Link
+              href='/activity'
+              onClick={closeMobile}
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                isActive('/activity')
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-foreground hover:bg-tertiary'
+              }`}
+            >
+              <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+                />
+              </svg>
+              Activity Log
+            </Link>
+          )}
         </div>
       </nav>
 

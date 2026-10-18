@@ -1,14 +1,19 @@
 'use client'
 
 import { useUserContext } from '@/context/user'
+import Link from 'next/link'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { firstAllowedPath, type Section } from '@/lib/permissions'
 
 type Props = {
   children: React.ReactNode
+  // Section this gate protects; omit to require full admin
+  section?: Section
 }
 
-export default function AdminGate({ children }: Props) {
-  const { userAddress, authStatus, authStatusIsLoading, isAdmin, handleSignIn, isSigningIn } = useUserContext()
+export default function AdminGate({ children, section }: Props) {
+  const { userAddress, authStatus, authStatusIsLoading, permissions, can, handleSignIn, isSigningIn } =
+    useUserContext()
 
   // Loading state
   if (authStatusIsLoading) {
@@ -50,8 +55,8 @@ export default function AdminGate({ children }: Props) {
     )
   }
 
-  // Authenticated but not admin
-  if (!isAdmin) {
+  // Authenticated but no access at all
+  if (permissions.length === 0) {
     return (
       <div className='flex min-h-screen items-center justify-center'>
         <div className='card flex max-w-md flex-col items-center text-center'>
@@ -66,7 +71,26 @@ export default function AdminGate({ children }: Props) {
     )
   }
 
-  // Authenticated admin - show children
+  // Authenticated with some access, but not to this section
+  if (!can(section)) {
+    const fallbackPath = firstAllowedPath(permissions)
+
+    return (
+      <div className='flex min-h-screen items-center justify-center'>
+        <div className='card flex max-w-md flex-col items-center text-center'>
+          <h1 className='text-error mb-4 text-2xl font-bold'>Access Denied</h1>
+          <p className='text-neutral mb-6'>Your account does not have access to this section.</p>
+          {fallbackPath && (
+            <Link href={fallbackPath} className='btn btn-primary'>
+              Go to an allowed section
+            </Link>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Authorized for this section - show children
   return <>{children}</>
 }
 

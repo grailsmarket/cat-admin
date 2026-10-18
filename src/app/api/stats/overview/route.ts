@@ -1,20 +1,10 @@
-import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAdmin } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAccess } from '@/lib/auth'
 import { getPool } from '@/lib/db'
 
-export async function GET() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('token')?.value
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { isAdmin } = await verifyAdmin(token)
-  if (!isAdmin) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+export async function GET(request: NextRequest) {
+  const access = await requireAccess(request, 'dashboard')
+  if (!access.ok) return access.response
 
   try {
     const pool = getPool()

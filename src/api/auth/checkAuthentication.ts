@@ -1,8 +1,11 @@
+import type { Permission } from '@/lib/permissions'
+
 type AuthCheckResponse = {
   success: boolean
   data?: {
     address: string
     isAdmin: boolean
+    permissions: Permission[]
   }
   error?: string
 }
