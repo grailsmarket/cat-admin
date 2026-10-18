@@ -3,16 +3,19 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar'
 import AdminGate from './AdminGate'
+import type { Section } from '@/lib/permissions'
 
 type Props = {
   children: React.ReactNode
+  // Section this page belongs to; omit to require full admin
+  section?: Section
 }
 
-export default function DashboardLayout({ children }: Props) {
+export default function DashboardLayout({ children, section }: Props) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <AdminGate>
+    <AdminGate section={section}>
       <div className='flex min-h-screen'>
         {/* Mobile header */}
         <div className='fixed top-0 left-0 right-0 z-40 flex h-14 items-center border-b border-border bg-secondary px-4 lg:hidden'>

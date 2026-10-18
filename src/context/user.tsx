@@ -8,12 +8,15 @@ import { DAY_IN_SECONDS } from '@/constants/time'
 import { fetchNonce } from '@/api/auth/fetchNonce'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthenticationStatus } from '@rainbow-me/rainbowkit'
+import { can as hasPermission, type Action, type Permission, type Section } from '@/lib/permissions'
 
 type UserContextType = {
   userAddress: Address | undefined
   authStatus: AuthenticationStatus
   authStatusIsLoading: boolean
   isAdmin: boolean
+  permissions: Permission[]
+  can: (section?: Section, action?: Action) => boolean
   isSigningIn: boolean
   handleSignIn: () => void
   handleSignOut: () => void
@@ -29,7 +32,8 @@ export const UserProvider: React.FC<Props> = ({ children }) => {
   const [isSigningIn, setIsSigningIn] = useState(false)
 
   const { address } = useAccount()
-  const { authStatus, verify, refetchAuthStatus, signOut, disconnect, authStatusIsLoading, isAdmin } = useAuth()
+  const { authStatus, verify, refetchAuthStatus, signOut, disconnect, authStatusIsLoading, isAdmin, permissions } =
+    useAuth()
 
   const handleGetNonce = useCallback(async () => {
     if (!address) throw new Error('No address found')
@@ -56,6 +60,11 @@ export const UserProvider: React.FC<Props> = ({ children }) => {
     expirationTime: DAY_IN_SECONDS * 1000,
   })
 
+  const can = useCallback(
+    (section?: Section, action?: Action) => hasPermission(permissions, section, action),
+    [permissions]
+  )
+
   const handleSignOut = () => {
     signOut()
   }
@@ -67,6 +76,8 @@ export const UserProvider: React.FC<Props> = ({ children }) => {
         authStatus,
         authStatusIsLoading,
         isAdmin,
+        permissions,
+        can,
         isSigningIn,
         handleSignIn,
         handleSignOut,

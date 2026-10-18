@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAdmin, getAdminAddresses } from '@/lib/auth'
+import { getPermissions } from '@/lib/auth'
+import { hasFullAccess } from '@/lib/permissions'
 
 const GRAILS_API_URL = process.env.GRAILS_API_URL || 'https://grails-api.ethid.org/api/v1'
 
@@ -43,18 +44,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid response from auth server' }, { status: 500 })
     }
 
-    // Check if user is admin
-    const adminAddresses = getAdminAddresses()
-    const userIsAdmin = isAdmin(address)
+    // Allow full admins and any address with at least one scoped grant
+    const permissions = getPermissions(address)
+    const userIsAdmin = hasFullAccess(permissions)
 
     // Redacted logging - don't expose admin addresses in logs
-    console.log('[verify] Admin check:', userIsAdmin ? 'authorized' : 'denied')
+    console.log('[verify] Access check:', permissions.length > 0 ? 'authorized' : 'denied')
 
-    if (!userIsAdmin) {
+    if (permissions.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: `Access denied. Your wallet address (${address}) is not authorized. Configure ADMIN_ADDRESSES env var.`,
+          error: `Access denied. Your wallet address (${address}) is not authorized. Configure ADMIN_ADDRESSES or ACCESS_GRANTS env var.`,
         },
         { status: 403 }
       )
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
         token,
         address,
         isAdmin: userIsAdmin,
+        permissions,
       },
     })
 

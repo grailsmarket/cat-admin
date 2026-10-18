@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyAdmin } from '@/lib/auth'
+import { requireAccess } from '@/lib/auth'
 import { getPool } from '@/lib/db'
 import { buildReferrerCaseExpression, SOURCE_NAMES } from '@/constants/referrers'
 
@@ -25,17 +24,8 @@ const VALID_BUCKETS: Record<string, { truncUnit: string; seriesInterval: string 
 }
 
 export async function GET(request: NextRequest) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('token')?.value
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { isAdmin } = await verifyAdmin(token)
-  if (!isAdmin) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const access = await requireAccess(request, 'analytics')
+  if (!access.ok) return access.response
 
   const searchParams = request.nextUrl.searchParams
   const fromParam = searchParams.get('from')
