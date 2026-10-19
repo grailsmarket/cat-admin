@@ -179,7 +179,34 @@ export default function NameDetailPage({ params }: PageProps) {
         </p>
       </div>
 
-      {/* Warning for local-only names (invalid ENS names that exist in categories) */}
+      {/* Stolen-name flag */}
+      {ensName.compromised && (
+        <div className='bg-error/10 border-error mb-6 rounded-lg border p-4'>
+          <div className='flex items-start gap-3'>
+            <svg className='h-5 w-5 text-error flex-shrink-0 mt-0.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+              <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' />
+            </svg>
+            <div>
+              <p className='text-error font-medium'>Flagged as compromised</p>
+              <p className='text-neutral text-sm mt-1'>
+                {ensName.compromised.incident.title}. Original owner{' '}
+                <span className='font-mono'>{ensName.compromised.original_owner}</span>
+                {ensName.compromised.allowed_addresses.length > 0 &&
+                  ` (+${ensName.compromised.allowed_addresses.length} recovery wallet${ensName.compromised.allowed_addresses.length === 1 ? '' : 's'})`}
+                .{' '}
+                <Link
+                  href={`/compromised-names?q=${encodeURIComponent(ensName.name)}`}
+                  className='text-primary hover:underline'
+                >
+                  Manage flag
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+            {/* Warning for local-only names (invalid ENS names that exist in categories) */}
       {ensName._localOnly && (
         <div className='bg-warning/10 border-warning mb-6 rounded-lg border p-4'>
           <div className='flex items-start gap-3'>

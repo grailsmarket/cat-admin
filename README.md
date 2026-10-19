@@ -101,6 +101,9 @@ API routes guarded with `requireAccess(request, section)` map GET/HEAD to `read`
 until a route is explicitly opted in. Currently opted in: analytics (`analytics`) and the overview stats
 (`dashboard`).
 
+Compromised Names (`/compromised-names`) is full-admin only and has no grantable section, since the
+grails-backend `/compromised-names/admin` endpoints require `is_admin`.
+
 Scoped accounts should not have `is_admin` set in the grails-backend `users` table, so backend admin
 endpoints stay closed to them as well.
 

@@ -170,6 +170,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       // Engagement
       view_count: d.view_count,
       watchers_count: d.watchers_count,
+
+      // Stolen-name flag (null unless actively flagged)
+      compromised: d.compromised ?? null,
     })
   } catch (error) {
     console.error('Lookup name error:', error)
