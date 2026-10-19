@@ -45,6 +45,14 @@ export interface EnsNameDetails {
   view_count: number
   watchers_count: number
   
+  // Stolen-name flag from grails-backend (null unless actively flagged)
+  compromised?: {
+    incident: { slug: string; title: string }
+    original_owner: string
+    allowed_addresses: string[]
+    taken_at: string | null
+  } | null
+
   // Local-only flag (name exists in DB but not in grails-backend)
   _localOnly?: boolean
 }
