@@ -4,9 +4,10 @@ export const REFERRER_SOURCES: Record<string, string> = {
   '0x0000000000000000000000001c0ea438837302b4516ac3f380313061ec11760f': 'snipezone',
   '0x000000000000000000000000efce7f86fd1efb0359a91c873e6dee9f98788713': 'enstools',
   '0x0000000000000000000000009531c059098e3d194ff87febb587ab07b30b1306': 'rotki',
+  '0x000000000000000000000000486b883dbbe12b342efc5d4685343611dd4b2c18': 'namewhisper',
 }
 
-export const SOURCE_NAMES = ['grails', 'vision', 'snipezone', 'enstools', 'rotki', 'direct'] as const
+export const SOURCE_NAMES = ['grails', 'vision', 'snipezone', 'enstools', 'rotki', 'namewhisper', 'direct'] as const
 export type SourceName = (typeof SOURCE_NAMES)[number]
 
 export const SOURCE_COLORS: Record<SourceName, string> = {
@@ -15,8 +16,12 @@ export const SOURCE_COLORS: Record<SourceName, string> = {
   snipezone: '#06b6d4',
   enstools: '#8b5cf6',
   rotki: '#10b981',
+  namewhisper: '#ec4899',
   direct: '#9ca3af',
 }
+
+// Sources hidden from the analytics page (still counted in totals)
+export const HIDDEN_SOURCES: readonly SourceName[] = ['rotki', 'enstools', 'snipezone']
 
 export function buildReferrerCaseExpression(): string {
   const cases = Object.entries(REFERRER_SOURCES)

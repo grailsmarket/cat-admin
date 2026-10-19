@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAccess } from '@/lib/auth'
 import { getPool } from '@/lib/db'
-import { buildReferrerCaseExpression, SOURCE_NAMES } from '@/constants/referrers'
+import { buildReferrerCaseExpression, SOURCE_NAMES, type SourceName } from '@/constants/referrers'
 
 function getTimeBucket(fromDate: Date, toDate: Date): { truncUnit: string; seriesInterval: string } {
   const diffMs = toDate.getTime() - fromDate.getTime()
@@ -78,52 +78,22 @@ export async function GET(request: NextRequest) {
       SELECT
         DATE_TRUNC('${truncUnit}', ${dateColumn}) AS date,
         COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE source = 'grails') AS grails,
-        COUNT(*) FILTER (WHERE source = 'vision') AS vision,
-        COUNT(*) FILTER (WHERE source = 'snipezone') AS snipezone,
-        COUNT(*) FILTER (WHERE source = 'enstools') AS enstools,
-        COUNT(*) FILTER (WHERE source = 'rotki') AS rotki,
-        COUNT(*) FILTER (WHERE source = 'direct') AS direct,
+        ${SOURCE_NAMES.map((name) => `COUNT(*) FILTER (WHERE source = '${name}') AS ${name},`).join('\n        ')}
         COALESCE(SUM(NULLIF(${costColumn}, '')::numeric), 0) / 1e18 AS total_cost_eth,
-        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'grails'), 0) / 1e18 AS grails_cost_eth,
-        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'vision'), 0) / 1e18 AS vision_cost_eth,
-        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'snipezone'), 0) / 1e18 AS snipezone_cost_eth,
-        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'enstools'), 0) / 1e18 AS enstools_cost_eth,
-        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'rotki'), 0) / 1e18 AS rotki_cost_eth,
-        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = 'direct'), 0) / 1e18 AS direct_cost_eth,
+        ${SOURCE_NAMES.map((name) => `COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = '${name}'), 0) / 1e18 AS ${name}_cost_eth,`).join('\n        ')}
         COALESCE(SUM(duration_secs), 0) / ${SECONDS_PER_YEAR} AS total_duration_years,
-        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'grails'), 0) / ${SECONDS_PER_YEAR} AS grails_duration_years,
-        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'vision'), 0) / ${SECONDS_PER_YEAR} AS vision_duration_years,
-        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'snipezone'), 0) / ${SECONDS_PER_YEAR} AS snipezone_duration_years,
-        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'enstools'), 0) / ${SECONDS_PER_YEAR} AS enstools_duration_years,
-        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'rotki'), 0) / ${SECONDS_PER_YEAR} AS rotki_duration_years,
-        COALESCE(SUM(duration_secs) FILTER (WHERE source = 'direct'), 0) / ${SECONDS_PER_YEAR} AS direct_duration_years
+        ${SOURCE_NAMES.map((name) => `COALESCE(SUM(duration_secs) FILTER (WHERE source = '${name}'), 0) / ${SECONDS_PER_YEAR} AS ${name}_duration_years`).join(',\n        ')}
       FROM source_mapped
       GROUP BY DATE_TRUNC('${truncUnit}', ${dateColumn})
     )
     SELECT
       ts.date,
       COALESCE(g.total, 0)::int AS total,
-      COALESCE(g.grails, 0)::int AS grails,
-      COALESCE(g.vision, 0)::int AS vision,
-      COALESCE(g.snipezone, 0)::int AS snipezone,
-      COALESCE(g.enstools, 0)::int AS enstools,
-      COALESCE(g.rotki, 0)::int AS rotki,
-      COALESCE(g.direct, 0)::int AS direct,
+      ${SOURCE_NAMES.map((name) => `COALESCE(g.${name}, 0)::int AS ${name},`).join('\n      ')}
       COALESCE(g.total_cost_eth, 0)::float AS total_cost_eth,
-      COALESCE(g.grails_cost_eth, 0)::float AS grails_cost_eth,
-      COALESCE(g.vision_cost_eth, 0)::float AS vision_cost_eth,
-      COALESCE(g.snipezone_cost_eth, 0)::float AS snipezone_cost_eth,
-      COALESCE(g.enstools_cost_eth, 0)::float AS enstools_cost_eth,
-      COALESCE(g.rotki_cost_eth, 0)::float AS rotki_cost_eth,
-      COALESCE(g.direct_cost_eth, 0)::float AS direct_cost_eth,
+      ${SOURCE_NAMES.map((name) => `COALESCE(g.${name}_cost_eth, 0)::float AS ${name}_cost_eth,`).join('\n      ')}
       COALESCE(g.total_duration_years, 0)::float AS total_duration_years,
-      COALESCE(g.grails_duration_years, 0)::float AS grails_duration_years,
-      COALESCE(g.vision_duration_years, 0)::float AS vision_duration_years,
-      COALESCE(g.snipezone_duration_years, 0)::float AS snipezone_duration_years,
-      COALESCE(g.enstools_duration_years, 0)::float AS enstools_duration_years,
-      COALESCE(g.rotki_duration_years, 0)::float AS rotki_duration_years,
-      COALESCE(g.direct_duration_years, 0)::float AS direct_duration_years
+      ${SOURCE_NAMES.map((name) => `COALESCE(g.${name}_duration_years, 0)::float AS ${name}_duration_years`).join(',\n      ')}
     FROM time_series ts
     LEFT JOIN grouped g ON ts.date = g.date
     ORDER BY ts.date ASC`
@@ -148,41 +118,24 @@ export async function GET(request: NextRequest) {
       ),
     ])
 
-    const mapRows = (rows: Array<Record<string, unknown>>) =>
-      rows.map((row) => ({
-        date: (row.date as Date).toISOString(),
-        total: row.total as number,
-        grails: row.grails as number,
-        vision: row.vision as number,
-        snipezone: row.snipezone as number,
-        enstools: row.enstools as number,
-        rotki: row.rotki as number,
-        direct: row.direct as number,
-      }))
+    // Build one row per bucket with total + a value per source, reading each source from column `${source}${suffix}`
+    const mapBreakdown = (rows: Array<Record<string, unknown>>, totalColumn: string, suffix: string) =>
+      rows.map((row) => {
+        const mapped = {
+          date: (row.date as Date).toISOString(),
+          total: row[totalColumn] as number,
+        } as { date: string; total: number } & Record<SourceName, number>
+        for (const name of SOURCE_NAMES) {
+          mapped[name] = row[`${name}${suffix}`] as number
+        }
+        return mapped
+      })
 
+    const mapRows = (rows: Array<Record<string, unknown>>) => mapBreakdown(rows, 'total', '')
     const mapCostRows = (rows: Array<Record<string, unknown>>) =>
-      rows.map((row) => ({
-        date: (row.date as Date).toISOString(),
-        total: row.total_cost_eth as number,
-        grails: row.grails_cost_eth as number,
-        vision: row.vision_cost_eth as number,
-        snipezone: row.snipezone_cost_eth as number,
-        enstools: row.enstools_cost_eth as number,
-        rotki: row.rotki_cost_eth as number,
-        direct: row.direct_cost_eth as number,
-      }))
-
+      mapBreakdown(rows, 'total_cost_eth', '_cost_eth')
     const mapDurationRows = (rows: Array<Record<string, unknown>>) =>
-      rows.map((row) => ({
-        date: (row.date as Date).toISOString(),
-        total: row.total_duration_years as number,
-        grails: row.grails_duration_years as number,
-        vision: row.vision_duration_years as number,
-        snipezone: row.snipezone_duration_years as number,
-        enstools: row.enstools_duration_years as number,
-        rotki: row.rotki_duration_years as number,
-        direct: row.direct_duration_years as number,
-      }))
+      mapBreakdown(rows, 'total_duration_years', '_duration_years')
 
     const registrations = mapRows(registrationsResult.rows)
     const renewals = mapRows(renewalsResult.rows)

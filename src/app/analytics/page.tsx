@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchRegistrationAnalytics } from '@/api/analytics'
-import { SOURCE_NAMES as ALL_SOURCE_NAMES, SOURCE_COLORS, type SourceName } from '@/constants/referrers'
+import { SOURCE_NAMES as ALL_SOURCE_NAMES, HIDDEN_SOURCES, SOURCE_COLORS, type SourceName } from '@/constants/referrers'
 
-const SOURCE_NAMES = ALL_SOURCE_NAMES.filter((s) => s !== 'rotki' && s !== 'enstools' && s !== 'snipezone')
+const SOURCE_NAMES = ALL_SOURCE_NAMES.filter((s) => !HIDDEN_SOURCES.includes(s))
 import AnalyticsChart, { type DataMode } from '@/components/AnalyticsChart'
 
 function toISODate(date: Date): string {
