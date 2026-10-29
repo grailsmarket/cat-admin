@@ -1,5 +1,7 @@
 export const REFERRER_SOURCES: Record<string, string> = {
+  // Grails has two referral codes: legacy (pre ENS v2) and current. Both count as 'grails'.
   '0x0000000000000000000000007e491cde0fbf08e51f54c4fb6b9e24afbd18966d': 'grails',
+  '0x000000000000000000000000387e4fd48122a6b6fe4717c5351860a43e35c852': 'grails',
   '0x000000000000000000000000f919a96d2970380b87917b04f02e6d3d08368b10': 'vision',
   '0x0000000000000000000000001c0ea438837302b4516ac3f380313061ec11760f': 'snipezone',
   '0x000000000000000000000000efce7f86fd1efb0359a91c873e6dee9f98788713': 'enstools',
