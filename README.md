@@ -60,7 +60,7 @@ Copy `env.example` to `.env.local` and fill in:
 DATABASE_URL=postgresql://grails_cat_admin:<password>@<host>:<port>/railway
 
 # Grails API for authentication
-GRAILS_API_URL=https://grails-api.ethid.org/api/v1
+GRAILS_API_URL=https://api.grails.app/api/v1
 
 # Comma-separated list of admin wallet addresses
 ADMIN_ADDRESSES=0x123...,0x456...
