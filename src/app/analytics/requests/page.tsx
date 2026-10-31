@@ -43,7 +43,7 @@ const PRESETS = [
 
 function formatDateLabel(dateStr: string): string {
   const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
 function truncateAddress(address: string): string {
@@ -69,6 +69,7 @@ function CustomTooltip({
           year: 'numeric',
           month: 'short',
           day: 'numeric',
+          timeZone: 'UTC',
         })}
       </p>
       <div className='space-y-1'>

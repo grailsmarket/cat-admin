@@ -45,9 +45,10 @@ function formatDateLabel(dateStr: string, bucket: 'hour' | 'day' | 'week' | 'mon
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' })
   }
   if (bucket === 'month') {
-    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })
   }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  // Day/week/month buckets start at UTC midnight, so label them in UTC (local time would show the previous day)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
 function CustomTooltip({
@@ -55,11 +56,13 @@ function CustomTooltip({
   payload,
   label,
   dataMode,
+  bucket,
 }: {
   active?: boolean
   payload?: ReadonlyArray<Payload<number, string>>
   label?: string
   dataMode: DataMode
+  bucket: 'hour' | 'day' | 'week' | 'month'
 }) {
   if (!active || !payload || payload.length === 0) return null
 
@@ -73,12 +76,20 @@ function CustomTooltip({
   return (
     <div className='rounded-lg border border-border bg-secondary p-3 shadow-lg'>
       <p className='mb-2 text-sm font-medium'>
-        {new Date(label ?? '').toLocaleDateString('en-US', {
-          weekday: 'short',
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        })}
+        {bucket === 'hour'
+          ? new Date(label ?? '').toLocaleString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+            })
+          : new Date(label ?? '').toLocaleDateString('en-US', {
+              weekday: 'short',
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              timeZone: 'UTC',
+            })}
       </p>
       <div className='space-y-1'>
         {payload
@@ -196,7 +207,7 @@ export default function AnalyticsChart({
               : undefined
         }
       />
-      <Tooltip content={<CustomTooltip dataMode={dataMode} />} />
+      <Tooltip content={<CustomTooltip dataMode={dataMode} bucket={bucket} />} />
     </>
   )
 

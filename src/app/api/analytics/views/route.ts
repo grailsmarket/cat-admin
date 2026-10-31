@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAccess } from '@/lib/auth'
 import { getPool } from '@/lib/db'
+import { parseRangeEnd } from '@/lib/dateRange'
 
 export async function GET(request: NextRequest) {
   const access = await requireAccess(request, 'analytics')
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   }
 
   const fromDate = new Date(fromParam)
-  const toDate = new Date(toParam)
+  const toDate = parseRangeEnd(toParam)
 
   if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
     return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
       WITH time_series AS (
         SELECT generate_series(
           DATE_TRUNC('day', $1::timestamptz),
-          DATE_TRUNC('day', $2::timestamptz),
+          DATE_TRUNC('day', $2::timestamptz - interval '1 microsecond'),
           '1 day'::interval
         ) AS date
       ),
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
       WITH time_series AS (
         SELECT generate_series(
           DATE_TRUNC('day', $1::timestamptz),
-          DATE_TRUNC('day', $2::timestamptz),
+          DATE_TRUNC('day', $2::timestamptz - interval '1 microsecond'),
           '1 day'::interval
         ) AS date
       ),

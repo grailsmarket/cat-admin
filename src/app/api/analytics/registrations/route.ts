@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAccess } from '@/lib/auth'
 import { getPool } from '@/lib/db'
+import { parseRangeEnd } from '@/lib/dateRange'
 import { buildReferrerCaseExpression, SOURCE_NAMES, type SourceName } from '@/constants/referrers'
 
 function getTimeBucket(fromDate: Date, toDate: Date): { truncUnit: string; seriesInterval: string } {
@@ -14,6 +15,39 @@ function getTimeBucket(fromDate: Date, toDate: Date): { truncUnit: string; serie
   } else {
     return { truncUnit: 'week', seriesInterval: '1 week' }
   }
+}
+
+// Payment tokens and their decimals. Legacy (ENS v1) rows have no currency_address and were paid in ETH.
+const ETH_TOKENS = [
+  '0x0000000000000000000000000000000000000000', // native ETH
+  '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', // WETH (mainnet)
+]
+const USD_STABLECOINS: Record<string, number> = {
+  '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6, // USDC (mainnet)
+  '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238': 6, // USDC (sepolia)
+  '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI (mainnet)
+}
+
+// SQL expression converting a row's cost to ETH. Stablecoin amounts are treated as USD and
+// divided by the most recent ETH/USD price at or before the transaction (price_feeds, every 5 min).
+function buildCostEthExpression(costColumn: string, dateColumn: string): string {
+  const amount = `NULLIF(${costColumn}, '')::numeric`
+  const ethList = ETH_TOKENS.map((a) => `'${a}'`).join(', ')
+  const stableCases = Object.entries(USD_STABLECOINS)
+    .map(([address, decimals]) => `WHEN '${address}' THEN ${amount} / 1e${decimals}`)
+    .join(' ')
+  // price_feeds.timestamp is a UTC timestamp without time zone
+  const ethUsd = `(
+          SELECT pf.price FROM price_feeds pf
+          WHERE pf.token_symbol = 'ETH' AND pf.quote_currency = 'USD'
+            AND pf.timestamp <= (${dateColumn} AT TIME ZONE 'UTC')
+          ORDER BY pf.timestamp DESC
+          LIMIT 1
+        )`
+  return `CASE
+        WHEN currency_address IS NULL OR LOWER(currency_address) IN (${ethList}) THEN ${amount} / 1e18
+        ELSE (CASE LOWER(currency_address) ${stableCases} END) / NULLIF(${ethUsd}, 0)
+      END`
 }
 
 const VALID_BUCKETS: Record<string, { truncUnit: string; seriesInterval: string }> = {
@@ -36,7 +70,7 @@ export async function GET(request: NextRequest) {
   }
 
   const fromDate = new Date(fromParam)
-  const toDate = new Date(toParam)
+  const toDate = parseRangeEnd(toParam)
 
   if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
     return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
@@ -60,14 +94,14 @@ export async function GET(request: NextRequest) {
     WITH time_series AS (
       SELECT generate_series(
         DATE_TRUNC('${truncUnit}', $1::timestamptz),
-        DATE_TRUNC('${truncUnit}', $2::timestamptz),
+        DATE_TRUNC('${truncUnit}', $2::timestamptz - interval '1 microsecond'),
         '${seriesInterval}'::interval
       ) AS date
     ),
     source_mapped AS (
       SELECT
         ${dateColumn},
-        ${costColumn},
+        ${buildCostEthExpression(costColumn, dateColumn)} AS cost_eth,
         (${durationExpr}) AS duration_secs,
         ${sourceCaseExpr} AS source
       FROM ${table}
@@ -79,8 +113,8 @@ export async function GET(request: NextRequest) {
         DATE_TRUNC('${truncUnit}', ${dateColumn}) AS date,
         COUNT(*) AS total,
         ${SOURCE_NAMES.map((name) => `COUNT(*) FILTER (WHERE source = '${name}') AS ${name},`).join('\n        ')}
-        COALESCE(SUM(NULLIF(${costColumn}, '')::numeric), 0) / 1e18 AS total_cost_eth,
-        ${SOURCE_NAMES.map((name) => `COALESCE(SUM(NULLIF(${costColumn}, '')::numeric) FILTER (WHERE source = '${name}'), 0) / 1e18 AS ${name}_cost_eth,`).join('\n        ')}
+        COALESCE(SUM(cost_eth), 0) AS total_cost_eth,
+        ${SOURCE_NAMES.map((name) => `COALESCE(SUM(cost_eth) FILTER (WHERE source = '${name}'), 0) AS ${name}_cost_eth,`).join('\n        ')}
         COALESCE(SUM(duration_secs), 0) / ${SECONDS_PER_YEAR} AS total_duration_years,
         ${SOURCE_NAMES.map((name) => `COALESCE(SUM(duration_secs) FILTER (WHERE source = '${name}'), 0) / ${SECONDS_PER_YEAR} AS ${name}_duration_years`).join(',\n        ')}
       FROM source_mapped
