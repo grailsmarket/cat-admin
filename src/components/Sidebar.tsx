@@ -262,6 +262,32 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
                 </svg>
                 Reg/Renewal
               </Link>
+              {/* Sub-nav: Market Share */}
+              <Link
+                href='/analytics/market-share'
+                onClick={closeMobile}
+                className={`ml-4 flex items-center gap-3 rounded-lg px-4 py-2 text-sm transition-colors ${
+                  pathname === '/analytics/market-share'
+                    ? 'text-primary font-medium'
+                    : 'text-neutral hover:text-foreground'
+                }`}
+              >
+                <svg className='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z'
+                  />
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z'
+                  />
+                </svg>
+                Market Share
+              </Link>
               {/* Sub-nav: Requests */}
               <Link
                 href='/analytics/requests'
