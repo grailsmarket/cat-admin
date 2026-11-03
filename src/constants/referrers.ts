@@ -31,3 +31,24 @@ export function buildReferrerCaseExpression(): string {
     .join('\n      ')
   return `CASE\n      ${cases}\n      ELSE 'direct'\n    END`
 }
+
+// Referrer codes that count as Grails (legacy + current)
+export const GRAILS_REFERRERS = Object.entries(REFERRER_SOURCES)
+  .filter(([, source]) => source === 'grails')
+  .map(([hash]) => hash)
+
+// GrailsETHRouter: pays for ENSv2 registrations/renewals in ETH by swapping to USDC, then calls
+// BulkRegistrationV2. It emits PaidWithETH once per call, which is how the market share page
+// tells ETH-paid Grails activity apart from USDC/DAI.
+export const GRAILS_ETH_ROUTER = {
+  address: '0x83827712df81af5a85a532a6bf08c3f74d1fc707',
+  deployBlock: BigInt(26288756), // 2026-10-28
+} as const
+
+// Relayer wallets that submit ENSv2 smart-account transactions: one transaction per user, gas paid
+// in USDC, a per-name resolver deployed. Very likely the official ENS app, but that's inferred from
+// on-chain behaviour (identified 2026-11-03). Add new relayer wallets here if the ENS app rotates them.
+export const SMART_ACCOUNT_RELAYERS = ['0x46565eedb0bb948ae787dd105cce300f736da28e']
+
+// First ENSv2 registrar/renewer event on mainnet (2026-10-27 06:45 UTC)
+export const ENSV2_LAUNCH_DATE = '2026-10-27'
